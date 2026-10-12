@@ -19,12 +19,15 @@ Run (streamable HTTP, for networked agents):
 
 from __future__ import annotations
 
+import hmac
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from mcp.server.fastmcp import FastMCP, Image
 from mcp.types import TextContent
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from .client import CheatClipClient, CheatClipError, summary_of_clips
 
@@ -397,13 +400,81 @@ def pick_best_clips(url: str, goal: str = "maximize watch-through and shares") -
     )
 
 
+def _bearer_auth_middleware(token: str):
+    """Returns a Starlette middleware class that requires a matching bearer token."""
+
+    class _BearerAuthMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):  # type: ignore[override]
+            if request.method == "OPTIONS":
+                return await call_next(request)
+            auth = request.headers.get("authorization", "")
+            provided = (
+                auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+            ) or request.headers.get("x-api-key", "")
+            if not (provided and hmac.compare_digest(provided, token)):
+                return JSONResponse({"error": "unauthorized"}, status_code=401)
+            return await call_next(request)
+
+    return _BearerAuthMiddleware
+
+
+def _configure_transport_security() -> None:
+    """
+    The streamable-HTTP transport rejects unknown Host headers (DNS-rebinding
+    guard). Behind a TLS proxy the Host is the public domain, so we must allow
+    it. Set CCP_MCP_ALLOWED_HOSTS (comma-separated, e.g. "mcp.example.com,app.example.com")
+    to restrict; otherwise the guard is disabled and access is gated by the
+    bearer token instead.
+    """
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    configured = os.environ.get("CCP_MCP_ALLOWED_HOSTS", "").strip()
+    if not configured:
+        mcp.settings.transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=False
+        )
+        return
+
+    hosts: List[str] = []
+    origins: List[str] = []
+    for entry in configured.split(","):
+        host = entry.strip()
+        if not host:
+            continue
+        hosts.extend([host, f"{host}:*"])
+        origins.extend([f"https://{host}", f"http://{host}"])
+    mcp.settings.transport_security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=hosts,
+        allowed_origins=origins,
+    )
+
+
 def main() -> None:
     transport = os.environ.get("CCP_MCP_TRANSPORT", "stdio").strip().lower()
     if transport in ("http", "streamable-http", "streamable_http"):
-        # FastMCP reads host/port from its settings; expose via env for convenience.
-        mcp.settings.host = os.environ.get("CCP_MCP_HOST", "0.0.0.0")
-        mcp.settings.port = int(os.environ.get("CCP_MCP_PORT", "8765"))
-        mcp.run(transport="streamable-http")
+        import uvicorn
+
+        _configure_transport_security()
+        app = mcp.streamable_http_app()
+
+        # Optional but recommended for a public endpoint: require a bearer token.
+        token = os.environ.get("MCP_HTTP_TOKEN") or os.environ.get("MCP_API_KEY") or ""
+        if token:
+            app.add_middleware(_bearer_auth_middleware(token.strip()))
+
+        host = os.environ.get("CCP_MCP_HOST", "0.0.0.0")
+        port = int(os.environ.get("CCP_MCP_PORT", "8765"))
+        # proxy_headers: trust X-Forwarded-* from the Coolify/nginx TLS proxy so the
+        # public scheme is reported as https even though we serve plain HTTP here.
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            log_level="info",
+            proxy_headers=True,
+            forwarded_allow_ips="*",
+        )
     else:
         mcp.run(transport="stdio")
 

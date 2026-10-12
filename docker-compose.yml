@@ -22,8 +22,13 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+      - mcp
     environment:
       BACKEND_URL: http://backend:8000
+      # Runtime DNS resolver for the /mcp upstream (Docker/Coolify = 127.0.0.11;
+      # set to your DNS gateway on other runtimes such as Podman).
+      CCP_MCP_RESOLVER: ${CCP_MCP_RESOLVER:-127.0.0.11}
+      CCP_MCP_UPSTREAM: ${CCP_MCP_UPSTREAM:-http://mcp:8765}
     # Host port is only for local `docker compose up`. In Coolify, routing is
     # done through Domains (Service = frontend, Internal port = 80).
     ports:
@@ -114,6 +119,9 @@ services:
       CCP_BASE_URL: http://backend:8000
       # Must match the backend's MCP_API_KEY so the agent can authenticate.
       MCP_API_KEY: ${MCP_API_KEY:-}
+      # Optional separate bearer token protecting the MCP HTTP endpoint itself
+      # (falls back to MCP_API_KEY when empty). Recommended for public domains.
+      MCP_HTTP_TOKEN: ${MCP_HTTP_TOKEN:-}
       CCP_MCP_TRANSPORT: streamable-http
       CCP_MCP_HOST: 0.0.0.0
       CCP_MCP_PORT: "8765"

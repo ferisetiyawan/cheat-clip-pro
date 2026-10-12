@@ -1,5 +1,7 @@
 # ==============================================================================
-# Cheat Clip PRO — Frontend (static SPA + reverse proxy to the backend service)
+# Cheat Clip PRO — Frontend (static SPA + reverse proxy to backend + MCP)
+# This is an nginx TEMPLATE: the official nginx image runs envsubst over it at
+# startup, so ${CCP_MCP_RESOLVER} / ${CCP_MCP_UPSTREAM} are filled from env.
 # ==============================================================================
 
 # Preserve the original scheme through proxy chains (e.g. Coolify's TLS proxy)
@@ -12,6 +14,11 @@ map $http_x_forwarded_proto $ccp_forwarded_proto {
 server {
     listen 80;
     server_name _;
+
+    # Runtime DNS resolver for the MCP upstream. Docker/Coolify = 127.0.0.11;
+    # other runtimes (e.g. Podman) set CCP_MCP_RESOLVER to their DNS gateway.
+    resolver ${CCP_MCP_RESOLVER} valid=10s ipv6=off;
+    set $mcp_upstream ${CCP_MCP_UPSTREAM};
 
     root /usr/share/nginx/html;
     index index.html;
@@ -54,6 +61,27 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $ccp_forwarded_proto;
+    }
+
+    # ── MCP server (Streamable HTTP) ─────────────────────────────────────────
+    # Exposes the Model Context Protocol endpoint on the SAME HTTPS domain as the
+    # app: https://<your-domain>/mcp  (no second domain needed in Coolify).
+    # Auth is enforced by the MCP server itself (MCP_HTTP_TOKEN / MCP_API_KEY).
+    location /mcp {
+        proxy_pass $mcp_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $ccp_forwarded_proto;
+        proxy_set_header Connection "";
+        # Streamable HTTP uses SSE for server->client messages: no buffering,
+        # long timeouts.
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        chunked_transfer_encoding on;
     }
 
     # ── Static assets: long-lived cache ──────────────────────────────────────

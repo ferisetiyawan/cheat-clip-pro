@@ -13,12 +13,17 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# ── Stage 2: Serve with nginx + reverse-proxy /api to the backend ─────────────
+# ── Stage 2: Serve with nginx + reverse-proxy /api and /mcp ───────────────────
 FROM nginx:1.27-alpine AS runner
 
-# Custom server config (SPA fallback + /api proxy for SSE streaming).
+# Runtime DNS resolver + MCP upstream for the /mcp location. Docker/Coolify uses
+# 127.0.0.11; override CCP_MCP_RESOLVER for other runtimes (e.g. Podman).
+ENV CCP_MCP_RESOLVER=127.0.0.11 \
+    CCP_MCP_UPSTREAM=http://mcp:8765
+
+# Custom server config as a template; the nginx entrypoint envsubst's it.
 RUN rm -f /etc/nginx/conf.d/default.conf
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Static build output.
 COPY --from=builder /app/dist /usr/share/nginx/html

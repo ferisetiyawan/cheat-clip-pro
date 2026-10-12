@@ -250,7 +250,9 @@ pip install -e ./mcp
 CCP_BASE_URL=https://your-cheatclip-host cheat-clip-mcp
 ```
 
-See [`mcp/README.md`](mcp/README.md) for the full tool list and agent-host configuration.
+When deployed via Coolify, the MCP is exposed over **HTTPS on your app domain** at
+`https://<your-domain>/mcp` (protected by `MCP_HTTP_TOKEN`). Point any MCP host at that URL — see
+[`mcp/README.md`](mcp/README.md) for opencode, Claude Code, Claude Desktop, and remote/local configs.
 
 ---
 

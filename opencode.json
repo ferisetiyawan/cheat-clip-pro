@@ -10,6 +10,14 @@
         "MCP_API_KEY": "{env:MCP_API_KEY}",
         "CCP_OUTPUT_DIR": "./cheat-clip-output"
       }
+    },
+    "stitch": {
+      "type": "remote",
+      "url": "https://stitch.googleapis.com/mcp",
+      "enabled": true,
+      "headers": {
+        "X-Goog-Api-Key": "AQ.Ab8RN6LC44IgsjgYVj1LUF-5SUQzaV6OiSwVBvuT_C0qlTLouw"
+      }
     }
   }
 }
