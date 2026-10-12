@@ -1,0 +1,58 @@
+# ==============================================================================
+# Cheat Clip PRO — Backend image (FastAPI + FFmpeg + yt-dlp + Whisper)
+# Multi-arch: builds natively on linux/amd64 and linux/arm64 (Coolify / Apple-Silicon-class ARM servers)
+# ==============================================================================
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8000 \
+    HOST=0.0.0.0 \
+    HOME=/home/appuser
+
+# ── System dependencies ───────────────────────────────────────────────────────
+# ffmpeg/ffprobe from Debian are built with --enable-libass (required by the
+# animated subtitle filter) and --enable-libx264 (CPU encoder fallback).
+# libgl1/libglib2.0-0 are required by OpenCV (camera/face-tracking + frame renders).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libgl1 \
+        libglib2.0-0 \
+        curl \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ── Python dependencies ───────────────────────────────────────────────────────
+# Torch comes from the official CPU wheel index (smaller image, no CUDA) and
+# ships native linux/arm64 wheels, so the same Dockerfile works on x86 and ARM.
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt
+
+# ── Application code ──────────────────────────────────────────────────────────
+COPY backend ./backend
+
+# ── Runtime user, bundled fonts, cacheable Whisper model ──────────────────────
+RUN chmod +x /app/backend/docker-entrypoint.sh \
+    && useradd -m -u 10001 appuser \
+    && mkdir -p /opt/default-fonts \
+    && cp -a /app/backend/fonts/. /opt/default-fonts/ \
+    && mkdir -p /app/backend/temp_clips/uploads /app/backend/temp /app/backend/exports \
+    && chown -R appuser:appuser /app /home/appuser /opt/default-fonts
+USER appuser
+
+# Pre-download the Whisper "base" model into the image so the first render does
+# not pay the download cost and the container works even with egress throttling.
+RUN python -c "import whisper; whisper.load_model('base')" || \
+    echo "[build] Whisper base model preload skipped (will download on first use)."
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
+    CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
+
+ENTRYPOINT ["/app/backend/docker-entrypoint.sh"]

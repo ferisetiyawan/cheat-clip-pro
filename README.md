@@ -93,6 +93,58 @@ npm run dev
 
 ---
 
+## 🐳 Production Deploy (Docker / Coolify)
+
+The repo ships a two-service `docker-compose.yml`:
+
+| Service | Image | Role |
+| --- | --- | --- |
+| `frontend` | nginx + built React SPA | Serves the UI and reverse-proxies `/api` (streams progress live). Publishes port `80`. |
+| `backend` | FastAPI + FFmpeg + yt-dlp + Whisper | All video download, transcription, AI analysis and rendering. Internal port `8000`. |
+
+Images build **natively on ARM64 and AMD64** (tested on ARM). No GPU is required — the renderer falls back to
+CPU `libx264`.
+
+### Run locally
+
+```bash
+docker compose up -d --build
+# App:      http://localhost:3000
+# API docs: http://localhost:3000/docs
+```
+
+### Deploy on Coolify
+
+1. Create a new Resource → **Docker Compose**, pointed at this repo.
+2. Set the exposed port to **80** (only the `frontend` service publishes a port; the backend stays internal).
+3. Add environment variables (all optional):
+   - `GEMINI_API_KEY` — server default AI key (users can also paste their own in the UI).
+   - `SUPADATA_API_KEYS`, `WEBSHARE_PROXY` — reliable YouTube transcript fetching.
+   - `ADMIN_API_KEY` — lock down admin/system endpoints on public deployments.
+   - `BACKEND_MEM_LIMIT` (default `3g`) / `BACKEND_CPUS` (default `3`) — raise if your server has more RAM.
+4. Deploy. Health checks: frontend `/healthz`, backend `/api/health`.
+
+> First build downloads Python/Torch + the Whisper `base` model (~1–2 GB) once; later deploys are cached.
+
+### Environment reference
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | — | Server-side default Gemini key |
+| `SUPADATA_API_KEYS` | — | Supadata transcript keys (comma/space separated) |
+| `WEBSHARE_PROXY` / `PROXY_URL` | — | Residential proxy to avoid YouTube IP bans |
+| `ADMIN_API_KEY` | — | Protect admin endpoints with a token |
+| `ALLOWED_ORIGINS` | — | Extra CORS origins (only if SPA and API differ) |
+| `TEMP_MAX_AGE_SECONDS` | `3600` | Delete temp files older than this |
+| `TEMP_STORAGE_QUOTA_GB` | `5.0` | Temp storage ceiling (FIFO purge) |
+| `OMP_NUM_THREADS` / `MKL_NUM_THREADS` | `2` | Cap Torch/CPU threads |
+| `BACKEND_MEM_LIMIT` / `BACKEND_CPUS` | `3g` / `3` | Backend resource guards |
+
+📄 **Product & architecture guide:** open [`docs/CHEAT_CLIP_PRO_PRD.html`](docs/CHEAT_CLIP_PRO_PRD.html)
+(use *Print → Save as PDF* for a PDF copy).
+
+---
+
 ## 🔄 Updating to the Latest Version
 
 To update Cheat Clip PRO to the latest release:

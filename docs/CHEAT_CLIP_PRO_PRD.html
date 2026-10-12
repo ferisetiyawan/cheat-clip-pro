@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cheat Clip PRO — Product Overview, AI Flow & Replication Guide</title>
+<style>
+  :root{
+    --ink:#111418; --muted:#5b6572; --line:#e3e7ec; --bg:#f6f8fa;
+    --brand:#4338ca; --brand2:#0ea5e9; --accent:#f59e0b; --ok:#059669; --warn:#b45309;
+    --code-bg:#0f172a; --code-ink:#e2e8f0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--bg); line-height:1.6; font-size:15px;
+  }
+  .page{max-width:1000px;margin:0 auto;background:#fff;padding:56px 64px 80px;
+    box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  header.hero{border-bottom:3px solid var(--brand);padding-bottom:28px;margin-bottom:36px}
+  .kicker{letter-spacing:.16em;text-transform:uppercase;font-size:11px;font-weight:700;color:var(--brand)}
+  h1{font-size:34px;line-height:1.15;margin:10px 0 8px}
+  h2{font-size:22px;margin:44px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:26px 0 8px}
+  h4{font-size:14px;margin:18px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  p{margin:10px 0}
+  .sub{color:var(--muted);font-size:16px;max-width:70ch}
+  .meta{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px;font-size:13px;color:var(--muted)}
+  .meta b{color:var(--ink)}
+  code{background:#eef2f7;border:1px solid var(--line);border-radius:4px;padding:1px 5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+  pre{background:var(--code-bg);color:var(--code-ink);padding:16px 18px;border-radius:10px;overflow:auto;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.55}
+  pre .c{color:#8b9bb4}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;vertical-align:top;padding:9px 11px;border:1px solid var(--line)}
+  th{background:#f1f4f8;font-weight:700}
+  tbody tr:nth-child(even){background:#fafbfc}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:16px 0}
+  .card{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fff}
+  .card h3{margin:0 0 6px;font-size:15px}
+  .card p{margin:0;font-size:13.5px;color:var(--muted)}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;
+    background:#eef2ff;color:#3730a3;margin-right:6px}
+  .pill.g{background:#ecfdf5;color:#047857}
+  .pill.a{background:#fffbeb;color:#b45309}
+  .pill.r{background:#fef2f2;color:#b91c1c}
+  .note{border-left:4px solid var(--brand2);background:#f0f9ff;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .warn{border-left:4px solid var(--accent);background:#fffbeb;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .flow{border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:18px 0;background:#fcfdfe}
+  .flow .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0}
+  .node{border:1.5px solid var(--brand);background:#fff;border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600}
+  .node.alt{border-color:var(--brand2)}
+  .node.ai{border-color:var(--accent);background:#fffdf5}
+  .node.store{border-color:var(--ok)}
+  .arrow{color:var(--muted);font-weight:700}
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:16px 0}
+  ol.steps>li{position:relative;padding:0 0 18px 46px;border-left:2px solid var(--line);margin-left:14px}
+  ol.steps>li:last-child{border-left-color:transparent}
+  ol.steps>li:before{counter-increment:s;content:counter(s);position:absolute;left:-15px;top:-2px;
+    width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;font-weight:700;font-size:13px;
+    display:flex;align-items:center;justify-content:center}
+  ol.steps>li h3{margin:0 0 4px}
+  .tier{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:8px 0;background:#fff;display:flex;gap:12px}
+  .tier .n{font-weight:800;color:var(--brand);min-width:52px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .small{font-size:12.5px;color:var(--muted)}
+  footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  @media (max-width:760px){.page{padding:28px}.cards,.two{grid-template-columns:1fr}}
+  @media print{
+    body{background:#fff;font-size:11.5pt}
+    .page{box-shadow:none;max-width:none;padding:0 10mm}
+    h2{break-after:avoid} .flow,.tier,.card,table{break-inside:avoid}
+    pre{background:#f4f6f9;color:#111;border:1px solid #ddd}
+    a{color:inherit;text-decoration:none}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="hero">
+  <div class="kicker">Product Requirements &amp; Architecture Document</div>
+  <h1>Cheat Clip PRO — AI Auto-Clipper</h1>
+  <p class="sub">A plain-language guide to how the product works, exactly where Google Gemini is used,
+  and how to run or rebuild it on a modern stack. Written for stakeholders, operators, and engineers.</p>
+  <div class="meta">
+    <span><b>Version:</b> 1.0</span>
+    <span><b>Document type:</b> PRD + Flow + Replication Guide</span>
+    <span><b>Audience:</b> Stakeholders, Product, DevOps, Engineers</span>
+    <span><b>Deploy target:</b> Coolify (Docker Compose) on ARM64</span>
+  </div>
+</header>
+
+<h2 id="tldr">1. TL;DR</h2>
+<div class="note">
+  <b>One sentence:</b> Cheat Clip PRO turns one long video (YouTube, Google Drive, or an upload) into
+  several ready-to-post vertical clips with animated captions, face-centered framing, and music —
+  in minutes, with no manual editing timeline.
+</div>
+<p>There are two moving parts:</p>
+<div class="cards">
+  <div class="card">
+    <h3>1. The “editor brain” (in this product: Gemini)</h3>
+    <p>Reads the video’s transcript and its audience-retention curve, then decides <i>which moments are
+    worth clipping</i> and writes the titles, captions, and hashtags.</p>
+  </div>
+  <div class="card">
+    <h3>2. The “video factory” (FFmpeg + Whisper + OpenCV/yt-dlp)</h3>
+    <p>Downloads the source, cuts the chosen segments, crops them to 9:16, keeps the speaker centered,
+    burns in karaoke subtitles, mixes music, and exports an MP4 or ZIP.</p>
+  </div>
+</div>
+<p>The AI decides <b>what</b> to clip. The video factory does <b>the clipping</b>. They are deliberately
+separate so the AI part can be swapped (Gemini today, any model tomorrow) without touching the renderer.</p>
+
+<h2 id="problem">2. Problem &amp; Solution</h2>
+<div class="two">
+  <div>
+    <h4>The problem</h4>
+    <ul>
+      <li>Long podcasts, streams, and webinars contain a handful of “viral” moments buried in hours of footage.</li>
+      <li>Finding them by hand is slow, subjective, and expensive.</li>
+      <li>Reformatting to vertical + adding captions + reframing the speaker is repetitive manual work.</li>
+    </ul>
+  </div>
+  <div>
+    <h4>The solution</h4>
+    <ul>
+      <li>AI scans the transcript + retention signal and proposes the best clips with timestamps.</li>
+      <li>One studio screen lets a creator restyle and batch-render everything at once.</li>
+      <li>Output is platform-ready (TikTok / Reels / Shorts) with no timeline editing required.</li>
+    </ul>
+  </div>
+</div>
+
+<h2 id="personas">3. Who it’s for</h2>
+<table>
+  <thead><tr><th>Persona</th><th>Job to be done</th><th>What “great” looks like</th></tr></thead>
+  <tbody>
+    <tr><td><b>Content repurposer</b> (social media manager)</td><td>Turn one client video into 5–10 posts per week without hiring an editor.</td><td>Upload a link, get a clean ZIP of vertical clips in &lt;15 min.</td></tr>
+    <tr><td><b>Podcaster / streamer</b></td><td>Mine their own back-catalog for highlight clips.</td><td>AI picks genuinely interesting moments, not random slices.</td></tr>
+    <tr><td><b>Solo creator / affiliate</b></td><td>Produce hooky shorts to drive traffic cheaply.</td><td>Cost near zero; no subscription editor.</td></tr>
+    <tr><td><b>Operator/DevOps</b> (you)</td><td>Self-host it reliably on a small server.</td><td>One compose file, ARM-friendly, predictable resource use.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="features">4. Feature Set</h2>
+<div class="cards">
+  <div class="card"><h3>Multi-source ingest</h3><p>YouTube URL, Google Drive link, or direct file upload.</p></div>
+  <div class="card"><h3>AI moment discovery</h3><p>Gemini ranks the most clippable moments using transcript + retention/energy heatmap.</p></div>
+  <div class="card"><h3>Clip durations</h3><p>Fixed (~15s / ~30s / ~60s) or <b>Auto</b> (dynamic 15–90s that respects sentence boundaries).</p></div>
+  <div class="card"><h3>Vertical formatting</h3><p>9:16 full-screen, square, or split-screen facecam layouts.</p></div>
+  <div class="card"><h3>Face tracking</h3><p>OpenCV keeps the active speaker centered automatically.</p></div>
+  <div class="card"><h3>Viral karaoke captions</h3><p>Word-level animated subtitles rendered with FFmpeg libass.</p></div>
+  <div class="card"><h3>Branding &amp; audio</h3><p>Watermark/logo, background music, hook sound effects.</p></div>
+  <div class="card"><h3>Batch render + ZIP</h3><p>Render many clips at once and download a single archive.</p></div>
+</div>
+
+<h2 id="journey">5. The Full User Journey</h2>
+<div class="flow">
+  <div class="row"><span class="node">Paste URL / Upload</span><span class="arrow">→</span>
+    <span class="node">Choose duration &amp; clip count</span><span class="arrow">→</span>
+    <span class="node ai">Analyze with AI</span><span class="arrow">→</span>
+    <span class="node">Review candidate clips</span></div>
+  <div class="row"><span class="node">Open Clip Studio</span><span class="arrow">→</span>
+    <span class="node">Style: frame, captions, face, music, watermark</span><span class="arrow">→</span>
+    <span class="node">Choose encoder (Auto)</span></div>
+  <div class="row"><span class="node store">Batch Render</span><span class="arrow">→</span>
+    <span class="node">Live progress (streaming)</span><span class="arrow">→</span>
+    <span class="node store">Download MP4 / ZIP</span></div>
+</div>
+<p class="small">Progress is streamed to the browser in real time (Server-Sent Events), so the user sees each
+stage — download, transcribe, analyze, render — without refreshing.</p>
+
+<h2 id="ai-flow">6. Where Gemini AI Is Used (the important part)</h2>
+<p>Gemini is used in <b>one place only</b>: after the transcript is ready, to turn it into a structured list of
+viral clip candidates. Everything else (downloading, transcribing, rendering) is done by non-AI tools.</p>
+
+<div class="flow">
+  <div class="row">
+    <span class="node">Source video</span><span class="arrow">→</span>
+    <span class="node">1. Metadata + retention heatmap</span><span class="arrow">→</span>
+    <span class="node">2. Transcript acquisition (7 tiers)</span>
+  </div>
+  <div class="row">
+    <span class="node">3. Language validation (ID / EN only)</span><span class="arrow">→</span>
+    <span class="node">4. Build prompt + transcript dump</span><span class="arrow">→</span>
+    <span class="node ai">5. Gemini call (JSON schema, 120s timeout, model fallback chain)</span>
+  </div>
+  <div class="row">
+    <span class="node ai">6. Structured clip candidates</span><span class="arrow">→</span>
+    <span class="node">7. Present in Clip Studio</span><span class="arrow">→</span>
+    <span class="node store">8. Render</span>
+  </div>
+</div>
+
+<h3>Step 1 — Metadata &amp; the “heatmap”</h3>
+<p>Before any AI call, the backend fetches the title, duration, and — for YouTube — the
+<b>audience retention heatmap</b> (the “most replayed” curve). This is the numerical signal of where viewers
+actually stay. For Google Drive / uploaded videos there is no retention curve, so the app computes an
+<b>acoustic energy heatmap</b> instead (where the speaker is loudest / most animated).</p>
+
+<h3>Step 2 — Getting a transcript (7 tiers of resilience)</h3>
+<p>The AI is only as good as the transcript. The backend tries, in order, until one works:</p>
+<div class="tier"><span class="n">Tier 1</span><span>Supadata cloud API (rotating keys) — reliable cloud-hosted transcript.</span></div>
+<div class="tier"><span class="n">Tier 2</span><span>YouTube transcript API through a rotating residential proxy.</span></div>
+<div class="tier"><span class="n">Tier 3</span><span>Same, but as an isolated CLI subprocess via proxy.</span></div>
+<div class="tier"><span class="n">Tier 4</span><span>yt-dlp native caption extraction via proxy.</span></div>
+<div class="tier"><span class="n">Tier 5</span><span>Direct YouTube transcript API (no proxy).</span></div>
+<div class="tier"><span class="n">Tier 6</span><span>Direct CLI subprocess (no proxy).</span></div>
+<div class="tier"><span class="n">Tier 7</span><span>Direct yt-dlp native extraction (no proxy).</span></div>
+<div class="tier"><span class="n">Fallback</span><span><b>Whisper AI</b> speech-to-text (local) — used when no caption track exists at all, e.g. uploads or Google Drive files.</span></div>
+<p>Every transcript is also validated for language: the product is intentionally scoped to
+<b>Indonesian and English</b>. Non-matching tracks are rejected and the next tier is tried, ending with Whisper.</p>
+
+<h3>Step 3 — Prompt assembly</h3>
+<p>The transcript is flattened into compact <code>start|end|interest text</code> lines (capped at 2,000–3,500 lines
+to control token cost) and packed into a system-style prompt that tells Gemini to act as an
+<b>expert short-form editor</b>. The prompt enforces hard rules:</p>
+<table>
+  <thead><tr><th>Rule in the prompt</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td>Output <b>100% in the video’s spoken language</b> (ID or EN); never translate.</td><td>Stops English captions appearing on Indonesian videos, etc.</td></tr>
+    <tr><td>Clips must start/end on <b>sentence boundaries</b> and never overlap.</td><td>Prevents mid-word cuts that feel broken.</td></tr>
+    <tr><td>Respect the chosen <b>duration</b> (15/30/60s or dynamic Auto up to 90s).</td><td>Matches the platform format the user wants.</td></tr>
+    <tr><td>Titles must <b>never use first person</b> (“I”, “saya”, “aku”).</td><td>The poster is a curator, not the speaker; avoids misleading clips.</td></tr>
+    <tr><td>Attribute to the real speaker/channel when known.</td><td>More credible, more clickable titles.</td></tr>
+    <tr><td>Optional <b>custom search focus</b> (“find clips about X”).</td><td>Lets users target a theme without changing the video language.</td></tr>
+  </tbody>
+</table>
+
+<h3>Step 4 — The Gemini call &amp; its guardrails</h3>
+<ul>
+  <li><b>Model:</b> defaults to <code>gemini-2.5-flash</code>; the app discovers the newest available Flash
+  models for the user’s key and builds a fallback chain (top 4).</li>
+  <li><b>Structured output:</b> requests strict JSON (<code>response_schema</code> = the video-analysis schema),
+  <code>temperature 0.2</code> (deterministic), <code>max_output_tokens 65536</code>.</li>
+  <li><b>Timeout &amp; retries:</b> 120s per model, one transient retry, then automatic fallback to the next model.</li>
+  <li><b>Streaming UX:</b> while the model “thinks”, the UI shows fabricated-but-honest stage messages
+  (context loading → retention cross-analysis → hook detection → boundary snapping → virality scoring).</li>
+  <li><b>Mock mode:</b> typing <code>mock</code> as the key returns sample data so the whole pipeline can be demoed without an API key.</li>
+</ul>
+
+<h3>Step 5 — What Gemini returns</h3>
+<pre><span class="c">// simplified shape of each candidate clip</span>
+{
+  "summary":            "what happens in the clip",
+  "title":              "catchy title, <= 8 words",
+  "title_suggestion":   "alternative title",
+  "caption_suggestion": "engaging social caption",
+  "hashtag_suggestion": "#relevant #hashtags",
+  "key_quotes":         ["verbatim quote from transcript", "..."],
+  "start":              142.0,
+  "end":                168.5,
+  "virality_score":     92
+}
+</pre>
+<p>The result is sorted by <code>virality_score</code>, so the user sees the strongest candidates first.
+These become the selectable cards in the Clip Studio.</p>
+
+<div class="warn">
+  <b>Where Gemini is NOT used:</b> it never touches the video pixels. It does not download, cut, crop, caption,
+  or encode. That keeps cost low (text-only calls) and keeps the AI swappable.
+</div>
+
+<h2 id="architecture">7. System Architecture</h2>
+<p>Two services, deliberately separated so they can scale or be replaced independently:</p>
+<div class="flow">
+  <div class="row">
+    <span class="node alt">Browser (React SPA)</span><span class="arrow">→</span>
+    <span class="node">frontend container (nginx)</span><span class="arrow">→</span>
+    <span class="node">reverse-proxies /api &amp; streams SSE</span><span class="arrow">→</span>
+    <span class="node">backend container (FastAPI)</span>
+  </div>
+  <div class="row">
+    <span class="node">yt-dlp</span><span class="arrow">+</span>
+    <span class="node">FFmpeg</span><span class="arrow">+</span>
+    <span class="node">Whisper (torch CPU)</span><span class="arrow">+</span>
+    <span class="node">OpenCV</span><span class="arrow">↔</span>
+    <span class="node ai">Gemini API</span>
+  </div>
+  <div class="row">
+    <span class="node store">Persistent volumes</span><span class="arrow">→</span>
+    <span class="node">temp / exports / fonts</span>
+  </div>
+</div>
+<table>
+  <thead><tr><th>Layer</th><th>Technology</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td>Frontend</td><td>React 19 + Vite + TypeScript</td><td>Single-page studio UI; talks to backend over <code>/api</code>.</td></tr>
+    <tr><td>Web server</td><td>nginx (Alpine)</td><td>Serves the built SPA, proxies <code>/api</code>, streams SSE, handles large uploads.</td></tr>
+    <tr><td>Backend</td><td>FastAPI + Uvicorn</td><td>All APIs: analyze, upload, render, download, system.</td></tr>
+    <tr><td>Downloader</td><td>yt-dlp</td><td>YouTube/Drive fetch, metadata, retention heatmap, clip segments.</td></tr>
+    <tr><td>Media engine</td><td>FFmpeg (libass, libx264)</td><td>Cut, crop, subtitle burn-in, watermark, audio mix, encode.</td></tr>
+    <tr><td>Speech</td><td>openai-whisper (base, CPU)</td><td>Fallback transcription + word-level caption timing.</td></tr>
+    <tr><td>Vision</td><td>OpenCV (headless)</td><td>Face detection/tracking for auto-framing.</td></tr>
+    <tr><td>AI</td><td>Google Gemini (Flash)</td><td>Clip selection + copywriting.</td></tr>
+    <tr><td>State</td><td>In-memory + Docker volumes</td><td>Render/download job state; media persisted to volumes.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="render">8. The Rendering Engine</h2>
+<ol class="steps">
+  <li><h3>Download the source segment</h3><p>yt-dlp pulls only the needed time range (or the full file for uploads/Drive).</p></li>
+  <li><h3>Detect the speaker</h3><p>OpenCV (Haar cascade + YuNet saliency) finds the face so the crop stays centered on the active speaker.</p></li>
+  <li><h3>Cut &amp; reframe</h3><p>FFmpeg crops to the chosen aspect (9:16 / square / split-screen facecam).</p></li>
+  <li><h3>Burn captions</h3><p>An ASS subtitle file with word-level karaoke animation is rendered via the <code>libass</code> filter.</p></li>
+  <li><h3>Add branding &amp; audio</h3><p>Watermark/logo overlay, background music, and hook SFX are mixed in.</p></li>
+  <li><h3>Encode with the best available encoder</h3><p>Auto-detects NVIDIA NVENC → AMD AMF → Intel QSV → CPU libx264 (the ARM/Coolify default).</p></li>
+  <li><h3>Package</h3><p>Clips land in <code>exports/</code> and are offered as individual MP4s or a single ZIP.</p></li>
+</ol>
+<div class="note">
+  <b>On ARM servers (like your Coolify box):</b> there is no NVENC/QSV, so the engine cleanly falls back to
+  <b>CPU libx264</b>. Threads are capped (2 by default) so rendering stays stable on a small machine.
+</div>
+
+<h2 id="deploy">9. How It Deploys on Coolify (Docker Compose)</h2>
+<p>The repository ships a two-service <code>docker-compose.yml</code> and two Dockerfiles. Coolify’s
+<b>Docker Compose</b> build pack reads them directly; images build <b>natively for ARM64</b> — no emulation.</p>
+<pre><span class="c"># services</span>
+backend   -> Dockerfile.backend    (FastAPI + FFmpeg + yt-dlp + Whisper, internal port 8000)
+frontend  -> Dockerfile.frontend   (Vite build served by nginx, publishes port 80)
+</pre>
+<ol class="steps">
+  <li><h3>Push the repo to Git</h3><p>Coolify deploys from a Git source (GitHub/GitLab or your own).</p></li>
+  <li><h3>Create a new Resource → Docker Compose</h3><p>Point it at the repo. Coolify detects <code>docker-compose.yml</code>.</p></li>
+  <li><h3>Set the exposed port to 80</h3><p>Only the <b>frontend</b> publishes a port; the backend stays on the private network. Map your domain to the frontend.</p></li>
+  <li><h3>Add environment variables</h3><p>Optional: <code>GEMINI_API_KEY</code>, <code>SUPADATA_API_KEYS</code>, <code>ADMIN_API_KEY</code>, and resource limits (see below). Users can also paste their own Gemini key in the UI.</p></li>
+  <li><h3>Deploy</h3><p>First build downloads Python/Torch/Whisper once; subsequent deploys are cached and fast.</p></li>
+  <li><h3>Health checks</h3><p>Frontend: nginx <code>/healthz</code>. Backend: <code>/api/health</code>. Coolify shows both as healthy.</p></li>
+</ol>
+<div class="warn">
+  <b>Sizing note.</b> The compose file defaults the backend to <b>3 GB RAM / 3 CPU</b>
+  (<code>BACKEND_MEM_LIMIT</code>, <code>BACKEND_CPUS</code>). If your server has more RAM, raise
+  <code>BACKEND_MEM_LIMIT</code> so long videos and Whisper have headroom; keep it below the host’s total RAM
+  so Coolify’s proxy and the OS stay responsive.
+</div>
+
+<h2 id="env">10. Environment Variables</h2>
+<table>
+  <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>GEMINI_API_KEY</code></td><td>(empty)</td><td>Server default Gemini key. Optional; users can supply their own in the UI.</td></tr>
+    <tr><td><code>SUPADATA_API_KEYS</code></td><td>(empty)</td><td>Comma/space-separated Supadata keys for reliable YouTube transcripts.</td></tr>
+    <tr><td><code>WEBSHARE_PROXY</code> / <code>PROXY_URL</code></td><td>(empty)</td><td>Residential proxy to avoid YouTube IP bans.</td></tr>
+    <tr><td><code>ADMIN_API_KEY</code></td><td>(empty)</td><td>Locks admin/system endpoints. Set this on public deployments.</td></tr>
+    <tr><td><code>ALLOWED_ORIGINS</code></td><td>(empty)</td><td>Extra CORS origins (only needed if the SPA is on a different origin).</td></tr>
+    <tr><td><code>TEMP_MAX_AGE_SECONDS</code></td><td>3600</td><td>Auto-delete temp files older than this (TTL cleanup).</td></tr>
+    <tr><td><code>TEMP_STORAGE_QUOTA_GB</code></td><td>5.0</td><td>Hard ceiling for temp storage; oldest files purged first.</td></tr>
+    <tr><td><code>CLEANUP_INTERVAL_SECONDS</code></td><td>1800</td><td>How often the cleanup worker runs.</td></tr>
+    <tr><td><code>OMP_NUM_THREADS</code> / <code>MKL_NUM_THREADS</code></td><td>2</td><td>Caps Torch/CPU threads on small servers.</td></tr>
+    <tr><td><code>BACKEND_MEM_LIMIT</code> / <code>BACKEND_CPUS</code></td><td>3g / 3</td><td>Container resource guards.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="replicate">11. How to Replicate or Improve It</h2>
+<h3>11.1 If you keep the current architecture</h3>
+<ul>
+  <li>Add a small <b>job queue + worker</b> (Redis/RQ or Celery) so renders survive restarts and can scale horizontally. Today job state is in one process.</li>
+  <li>Move media to <b>object storage</b> (S3/R2) instead of Docker volumes for durability and multi-replica scale.</li>
+  <li>Cache transcripts and Gemini results <b>per video</b> so re-analyzing is free and instant.</li>
+</ul>
+
+<h3>11.2 Recommended “better stack” for a rebuild</h3>
+<table>
+  <thead><tr><th>Concern</th><th>Current</th><th>Upgrade suggestion</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Transcription</td><td>openai-whisper (base, CPU)</td><td><b>faster-whisper</b> or <b>WhisperX</b> (CTranslate2, INT8)</td><td>5–10× faster on CPU, far lower RAM, better word timestamps — ideal for ARM.</td></tr>
+    <tr><td>AI selection</td><td>Gemini Flash only</td><td>Provider-agnostic layer (Gemini / GPT / Claude / local)</td><td>Cost and quality flexibility; avoids single-vendor lock-in.</td></tr>
+    <tr><td>API/backend</td><td>FastAPI monolith</td><td>Keep FastAPI, extract render into a <b>worker service</b></td><td>Reliability, retries, autoscaling.</td></tr>
+    <tr><td>State</td><td>In-memory dicts</td><td>Redis for state, Postgres for history</td><td>Durable job tracking and per-user history.</td></tr>
+    <tr><td>Storage</td><td>Docker volumes</td><td>S3-compatible object storage</td><td>Scales beyond one box; survives redeploys.</td></tr>
+    <tr><td>Encoding</td><td>libx264 CPU on ARM</td><td>Vertical ARM GPU / dedicated render node, or queue to a GPU worker</td><td>Rendering is the CPU bottleneck on ARM.</td></tr>
+    <tr><td>Auth</td><td>None (open)</td><td>Accounts + API keys + quotas</td><td>Required for any multi-user/SaaS form.</td></tr>
+  </tbody>
+</table>
+
+<h3>11.3 UI / UX improvements (making it friendlier)</h3>
+<div class="cards">
+  <div class="card"><h3>Guided 3-step wizard</h3><p>New users often don’t know the order: <b>Source → Analyze → Style → Export</b>. A stepper beats a dense studio screen for first-timers.</p></div>
+  <div class="card"><h3>Preset templates</h3><p>One-click looks (“Podcast Clip”, “Gaming Short”, “Talking Head”) instead of configuring 20 controls.</p></div>
+  <div class="card"><h3>Instant preview</h3><p>Render a short watermarked preview of the first 3 seconds before the full batch, so users trust the style.</p></div>
+  <div class="card"><h3>Honest progress</h3><p>Show real ETA and queue position; renders can take minutes on a small server.</p></div>
+  <div class="card"><h3>Clip library + history</h3><p>Persist past batches so users can re-download without re-rendering.</p></div>
+  <div class="card"><h3>Inline AI editing</h3><p>Let users tweak a title and “regenerate” just that field via the AI.</p></div>
+</div>
+
+<h3>11.4 A product roadmap (milestones)</h3>
+<ol class="steps">
+  <li><h3>MVP (what exists)</h3><p>Single-user self-hosted clipper with Gemini + FFmpeg + Whisper.</p></li>
+  <li><h3>Reliability</h3><p>Worker queue, object storage, transcript/analysis caching.</p></li>
+  <li><h3>Multi-user</h3><p>Accounts, per-user API keys, quotas, history.</p></li>
+  <li><h3>Faster inference</h3><p>faster-whisper + GPU/ARM-optimized rendering node.</p></li>
+  <li><h3>Distribution</h3><p>Direct publish to TikTok/YouTube/Reels, scheduling, analytics on which clips perform.</p></li>
+</ol>
+
+<h2 id="appendix">12. Appendix — Main API Endpoints</h2>
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>/api/analyze</code></td><td>POST (SSE)</td><td>Run the metadata → transcript → Gemini pipeline and stream progress.</td></tr>
+    <tr><td><code>/api/models</code></td><td>GET</td><td>List available Gemini models for the supplied key.</td></tr>
+    <tr><td><code>/api/upload-video</code></td><td>POST</td><td>Upload a source video.</td></tr>
+    <tr><td><code>/api/upload-bgm</code> · <code>/api/upload-sfx</code> · <code>/api/upload-watermark</code> · <code>/api/upload-font</code></td><td>POST</td><td>Upload music, sound effects, watermark, fonts.</td></tr>
+    <tr><td><code>/api/detect-face</code></td><td>GET</td><td>Detect the speaker frame for auto-centering.</td></tr>
+    <tr><td><code>/api/render-batch</code></td><td>POST</td><td>Start a batch render.</td></tr>
+    <tr><td><code>/api/render-progress/{batch_id}</code></td><td>GET (SSE)</td><td>Live render progress stream.</td></tr>
+    <tr><td><code>/api/download-rendered/{file}</code> · <code>/api/download-batch-zip/{id}</code></td><td>GET</td><td>Download a clip or the whole batch as ZIP.</td></tr>
+    <tr><td><code>/api/hardware-accel</code></td><td>GET</td><td>Report available encoders (nvenc/amf/qsv/cpu).</td></tr>
+    <tr><td><code>/api/health</code> · <code>/api/system/version</code></td><td>GET</td><td>Health and version info.</td></tr>
+    <tr><td><code>/api/clear-temp</code> · <code>/api/auto-cleanup</code></td><td>POST</td><td>Manual storage cleanup (admin-gated).</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  Cheat Clip PRO — Product Overview, AI Flow &amp; Replication Guide · v1.0 ·
+  Built for the self-hosted, ARM-friendly Coolify deployment. This document is self-contained:
+  open it in a browser and use <b>Print → Save as PDF</b> to export.
+</footer>
+
+</div>
+</body>
+</html>

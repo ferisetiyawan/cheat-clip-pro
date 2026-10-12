@@ -1,34 +1,82 @@
-version: '3.8'
-
+# ==============================================================================
+# Cheat Clip PRO — Docker Compose (Coolify "Docker Compose" build pack ready)
+#
+#   frontend  -> nginx: serves the React SPA and reverse-proxies /api -> backend
+#   backend   -> FastAPI + FFmpeg + yt-dlp + Whisper (video download/render)
+#
+# The frontend is the only service that publishes a host port, so Coolify's
+# reverse proxy (Traefik/Caddy) should target the frontend on port 80.
+# Built natively for linux/arm64 and linux/amd64 — no emulation required.
+# ==============================================================================
 services:
-  cheat-clip-pro:
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: cheat-clip-pro
+      dockerfile: Dockerfile.backend
     restart: unless-stopped
-    ports:
-      - "8000:8000"
     environment:
-      - HOST=0.0.0.0
-      - PORT=8000
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GROQ_API_KEY=${GROQ_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - SUPADATA_API_KEYS=${SUPADATA_API_KEYS:-}
-      - WEBSHARE_PROXY=${WEBSHARE_PROXY:-}
+      # Server
+      HOST: 0.0.0.0
+      PORT: "8000"
+      ENVIRONMENT: production
+      SERVER_MODE: "true"
+      # AI / transcript providers (all optional — users can also paste a key in the UI)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      SUPADATA_API_KEYS: ${SUPADATA_API_KEYS:-}
+      WEBSHARE_PROXY: ${WEBSHARE_PROXY:-}
+      PROXY_URL: ${PROXY_URL:-}
+      # Lock down admin/system endpoints with a token for public deployments.
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      # CORS — only needed if the SPA is served from a different origin than /api.
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      # Automatic temp storage cleanup (TTL + storage quota).
+      TEMP_MAX_AGE_SECONDS: ${TEMP_MAX_AGE_SECONDS:-3600}
+      TEMP_STORAGE_QUOTA_GB: ${TEMP_STORAGE_QUOTA_GB:-5.0}
+      CLEANUP_INTERVAL_SECONDS: ${CLEANUP_INTERVAL_SECONDS:-1800}
+      # Keep CPU/thread usage friendly on small shared servers.
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-2}
+      MKL_NUM_THREADS: ${MKL_NUM_THREADS:-2}
     volumes:
-      - media_temp:/app/temp
-      - media_uploads:/app/uploads
-      - media_exports:/app/exports
-      - custom_fonts:/app/fonts
-    deploy:
-      resources:
-        limits:
-          memory: 3200M
+      - media_temp:/app/backend/temp_clips
+      - media_temp_legacy:/app/backend/temp
+      - media_exports:/app/backend/exports
+      - custom_fonts:/app/backend/fonts
+    expose:
+      - "8000"
+    # Resource guards. Raise BACKEND_MEM_LIMIT if your server has more than
+    # ~4 GB RAM (long videos + Whisper are memory hungry); keep it below the
+    # host RAM so the Coolify proxy and OS stay responsive.
+    mem_limit: ${BACKEND_MEM_LIMIT:-3g}
+    memswap_limit: ${BACKEND_MEM_LIMIT:-3g}
+    cpus: ${BACKEND_CPUS:-3}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
 volumes:
   media_temp:
-  media_uploads:
+  media_temp_legacy:
   media_exports:
   custom_fonts:

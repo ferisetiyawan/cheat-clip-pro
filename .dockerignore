@@ -2,18 +2,25 @@
 .github
 node_modules
 dist
+dist_app
+dist_installer
 venv
 .venv
+env
 __pycache__
 *.pyc
 *.pyo
 *.pyd
+.env
 .env.local
 .env.*.local
 scratch
-temp
-exports
-uploads
-fonts
 logs
 *.log
+
+# Runtime media generated while the app is running. NOTE: backend/fonts is
+# intentionally NOT ignored so the bundled caption fonts ship inside the image.
+temp
+temp_clips
+exports
+uploads
