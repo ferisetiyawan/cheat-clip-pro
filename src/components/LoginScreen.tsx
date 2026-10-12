@@ -4,9 +4,10 @@ import { login } from '../utils/auth';
 
 interface LoginScreenProps {
   onSuccess: () => void;
+  loginAvailable?: boolean;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onSuccess }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onSuccess, loginAvailable = true }) => {
   const { t } = useLanguage();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +29,45 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onSuccess }) => {
       setSubmitting(false);
     }
   };
+
+  if (!loginAvailable) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '2rem',
+          background: 'radial-gradient(1200px 600px at 50% -10%, rgba(99,102,241,0.18), transparent 60%), var(--bg-primary, #070b16)',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '440px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.9rem',
+            padding: '2rem',
+            borderRadius: '16px',
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.45)',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: '1.9rem' }}>🔐</div>
+          <h1 className="text-gradient" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
+            {t.auth.apiKeyOnlyTitle}
+          </h1>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary, #9aa4b2)', lineHeight: 1.55 }}>
+            {t.auth.apiKeyOnlyDesc}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

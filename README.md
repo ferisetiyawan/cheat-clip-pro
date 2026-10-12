@@ -141,6 +141,7 @@ docker compose up -d --build
 | `ADMIN_API_KEY` | — | Protect admin endpoints with a token |
 | `DASHBOARD_LOGIN_USERNAME` / `DASHBOARD_LOGIN_PASSWORD` | — | Require a dashboard login (set **both** to enable) |
 | `DASHBOARD_SESSION_SECRET` | — | Optional fixed signing secret so logins survive restarts |
+| `MCP_API_KEY` | — | Programmatic API key for the MCP server / API clients (Bearer or `X-API-Key`) |
 | `YOUTUBE_COOKIES` | — | Server-default YouTube cookies (raw Netscape/JSON content) |
 | `YOUTUBE_COOKIES_FILE` | — | Server-default cookies from a mounted file path |
 | `ALLOWED_ORIGINS` | — | Extra CORS origins (only if SPA and API differ) |
@@ -230,6 +231,26 @@ Cheat Clip PRO uses Google's AI to find the best viral moments for free:
   * **Intel** (`h264_qsv` on Arc & UHD Graphics)
   * **Apple Mac & CPU Software** (`libx264` universal high-speed fallback)
 * You can switch your preferred hardware acceleration encoder anytime in the Render Settings or History card.
+
+---
+
+## 🤖 MCP Server (AI Agent Automation)
+
+Drive Cheat Clip PRO from an AI agent (Hermes Multi Agent, Claude Desktop, Cursor, …) via the
+[Model Context Protocol](https://modelcontextprotocol.io) server in [`mcp/`](mcp/):
+
+1. `analyze_video(url)` — paste a YouTube URL, get ranked clip recommendations.
+2. `preview_clips(video_id, clip_indices)` — returns **frame images** so the agent/user can see the clips.
+3. `render_clips(video_id, clip_indices)` — render the chosen clips and download the MP4s/ZIP.
+
+**No Gemini key needed** — the backend reads `GEMINI_API_KEY` from its ENV; the MCP never asks for it.
+
+```bash
+pip install -e ./mcp
+CCP_BASE_URL=https://your-cheatclip-host cheat-clip-mcp
+```
+
+See [`mcp/README.md`](mcp/README.md) for the full tool list and agent-host configuration.
 
 ---
 

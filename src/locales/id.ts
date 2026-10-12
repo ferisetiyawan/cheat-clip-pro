@@ -33,6 +33,8 @@ export const id: Translations = {
     logout: "Keluar",
     logoutTooltip: "Keluar dari dasbor",
     checking: "Memeriksa sesi...",
+    apiKeyOnlyTitle: "Hanya akses kunci API",
+    apiKeyOnlyDesc: "Instans ini dilindungi oleh kunci API (MCP_API_KEY) untuk akses program, sehingga login peramban dinonaktifkan. Gunakan kunci API dengan server MCP atau klien API. Untuk mengaktifkan login web, atur juga DASHBOARD_LOGIN_USERNAME dan DASHBOARD_LOGIN_PASSWORD.",
   },
   envOverride: {
     serverManaged: "Server (ENV)",

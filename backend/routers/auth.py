@@ -8,7 +8,10 @@ from backend.services.auth_service import (
     SESSION_TTL_SECONDS,
     auth_enabled,
     create_session_token,
+    login_available,
+    mcp_api_key_configured,
     verify_credentials,
+    verify_mcp_api_key,
     verify_session_token,
 )
 
@@ -45,11 +48,21 @@ def _is_https(request: Request) -> bool:
 @router.get("/api/auth/status")
 def auth_status(request: Request):
     required = auth_enabled()
-    username = verify_session_token(_extract_token(request)) if required else None
+    token = _extract_token(request)
+    api_key = request.headers.get("x-api-key", "")
+    username = verify_session_token(token) if required else None
+    authenticated = (
+        (not required)
+        or bool(username)
+        or verify_mcp_api_key(token or "")
+        or verify_mcp_api_key(api_key)
+    )
     return {
         "auth_required": required,
-        "authenticated": (not required) or bool(username),
+        "authenticated": authenticated,
         "username": username,
+        "login_available": login_available(),
+        "api_key_enabled": mcp_api_key_configured(),
     }
 
 
@@ -57,6 +70,15 @@ def auth_status(request: Request):
 def auth_login(body: LoginRequest, request: Request, response: Response):
     if not auth_enabled():
         return {"success": True, "auth_required": False, "message": "Authentication is not enabled."}
+
+    if not login_available():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Password login is not configured on this instance. It is protected by an "
+                "API key (MCP_API_KEY) for programmatic access."
+            ),
+        )
 
     if not verify_credentials(body.username, body.password):
         raise HTTPException(status_code=401, detail="Invalid username or password.")

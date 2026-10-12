@@ -22,6 +22,7 @@ from backend.routers import (
 from backend.services.auth_service import (
     SESSION_COOKIE,
     auth_enabled,
+    verify_mcp_api_key,
     verify_session_token,
 )
 # Re-exports for backwards compatibility
@@ -157,12 +158,16 @@ async def dashboard_auth_gate(request: Request, call_next):
         return await call_next(request)
 
     token = request.cookies.get(SESSION_COOKIE)
-    if not token:
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
+    api_key = request.headers.get("x-api-key", "")
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        bearer = auth_header[7:].strip()
+        if not token:
+            token = bearer
+        if not api_key:
+            api_key = bearer
 
-    if verify_session_token(token):
+    if verify_session_token(token) or verify_mcp_api_key(api_key):
         return await call_next(request)
 
     return JSONResponse(

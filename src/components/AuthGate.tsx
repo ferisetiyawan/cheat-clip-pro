@@ -10,12 +10,14 @@ import { LoginScreen } from './LoginScreen';
 export const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { t } = useLanguage();
   const [state, setState] = useState<'checking' | 'login' | 'ready'>('checking');
+  const [loginAvailable, setLoginAvailable] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     fetchAuthStatus()
       .then((status) => {
         if (cancelled) return;
+        setLoginAvailable(status.login_available);
         setState(status.auth_required && !status.authenticated ? 'login' : 'ready');
       })
       .catch(() => {
@@ -44,7 +46,7 @@ export const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) 
   }
 
   if (state === 'login') {
-    return <LoginScreen onSuccess={() => setState('ready')} />;
+    return <LoginScreen loginAvailable={loginAvailable} onSuccess={() => setState('ready')} />;
   }
 
   return <>{children}</>;

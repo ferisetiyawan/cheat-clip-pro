@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skills": {
+    "stitch-mcp-mockup-generator": {
+      "source": "git@me.github.com:ferisetiyawan/skills-repo.git",
+      "sourceUrl": "git@me.github.com:ferisetiyawan/skills-repo.git",
+      "sourceType": "git",
+      "skillPath": "skills/stitch-mcp-mockup-generator/SKILL.md",
+      "computedHash": "db2971c9d095a69a7823a5a923eef70d3fb5de4dce2e8cebde493b3a2008e1dc"
+    }
+  }
+}

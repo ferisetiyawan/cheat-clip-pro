@@ -3,12 +3,14 @@
 #
 #   frontend  -> nginx: serves the React SPA and reverse-proxies /api -> backend
 #   backend   -> FastAPI + FFmpeg + yt-dlp + Whisper (video download/render)
+#   mcp       -> Model Context Protocol server for AI agents (optional)
 #
 # IMPORTANT — Coolify routing:
-#   The frontend is the ONLY public entrypoint. In Coolify, open
-#   Domains -> Add domain -> Service = "frontend", Internal port = 80.
-#   The backend is private (reached over the Compose network as backend:8000)
-#   and must NOT be given a public domain.
+#   The frontend is the public web entrypoint. In Coolify:
+#     Domains -> Add domain -> Service = "frontend", Internal port = 80
+#   To expose the MCP server to a remote agent, add a SECOND domain pointing at
+#   Service = "mcp", Internal port = 8765 (protect it — see mcp/README.md).
+#   The backend stays private (reached over the Compose network as backend:8000).
 #   `frontend` is listed first so Coolify's default domain maps to it.
 # Built natively for linux/arm64 and linux/amd64 — no emulation required.
 # ==============================================================================
@@ -65,6 +67,9 @@ services:
       # Optional fixed secret for session tokens (recommended in production so
       # logins survive restarts). Falls back to a value derived from the password.
       DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:-}
+      # Programmatic access key for the MCP server / API clients. When set, the
+      # API accepts "Authorization: Bearer <key>" or "X-API-Key: <key>".
+      MCP_API_KEY: ${MCP_API_KEY:-}
       # Server-default YouTube cookies used when the browser sends none.
       # Provide raw cookie content, or a mounted file path.
       YOUTUBE_COOKIES: ${YOUTUBE_COOKIES:-}
@@ -97,8 +102,38 @@ services:
       start_period: 90s
       retries: 5
 
+  mcp:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Reaches the backend over the private Compose network (no public hop).
+      CCP_BASE_URL: http://backend:8000
+      # Must match the backend's MCP_API_KEY so the agent can authenticate.
+      MCP_API_KEY: ${MCP_API_KEY:-}
+      CCP_MCP_TRANSPORT: streamable-http
+      CCP_MCP_HOST: 0.0.0.0
+      CCP_MCP_PORT: "8765"
+      CCP_OUTPUT_DIR: /data
+    volumes:
+      - mcp_output:/data
+    # No published port: expose via Coolify Domains (Service = mcp, port 8765).
+    expose:
+      - "8765"
+    mem_limit: ${MCP_MEM_LIMIT:-512m}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8765), 2).close()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
 volumes:
   media_temp:
   media_temp_legacy:
   media_exports:
   custom_fonts:
+  mcp_output:

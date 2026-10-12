@@ -31,6 +31,8 @@ export const en = {
     logout: "Log out",
     logoutTooltip: "Sign out of the dashboard",
     checking: "Checking session...",
+    apiKeyOnlyTitle: "API key access only",
+    apiKeyOnlyDesc: "This instance is protected by an API key (MCP_API_KEY) for programmatic access, so browser login is disabled. Use the API key with the MCP server or API clients. To enable a web login, also set DASHBOARD_LOGIN_USERNAME and DASHBOARD_LOGIN_PASSWORD.",
   },
   envOverride: {
     serverManaged: "Server (ENV)",

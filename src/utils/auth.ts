@@ -9,9 +9,17 @@ export interface AuthStatus {
   auth_required: boolean;
   authenticated: boolean;
   username: string | null;
+  login_available: boolean;
+  api_key_enabled: boolean;
 }
 
-const FALLBACK: AuthStatus = { auth_required: false, authenticated: true, username: null };
+const FALLBACK: AuthStatus = {
+  auth_required: false,
+  authenticated: true,
+  username: null,
+  login_available: true,
+  api_key_enabled: false,
+};
 
 export async function fetchAuthStatus(): Promise<AuthStatus> {
   try {
@@ -20,11 +28,13 @@ export async function fetchAuthStatus(): Promise<AuthStatus> {
       cache: 'no-store',
     });
     if (!res.ok) return FALLBACK;
-    const data = (await res.json()) as AuthStatus;
+    const data = (await res.json()) as Partial<AuthStatus>;
     return {
       auth_required: Boolean(data?.auth_required),
       authenticated: Boolean(data?.authenticated),
       username: data?.username ?? null,
+      login_available: data?.login_available !== false,
+      api_key_enabled: Boolean(data?.api_key_enabled),
     };
   } catch {
     // If the API is unreachable, do not lock the user out of the UI shell.

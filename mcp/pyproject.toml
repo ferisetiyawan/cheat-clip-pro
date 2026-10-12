@@ -1,0 +1,20 @@
+[project]
+name = "cheat-clip-mcp"
+version = "0.1.0"
+description = "Model Context Protocol server for Cheat Clip PRO — analyze YouTube videos, preview recommended clips, and render the best ones."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.9,<2",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+cheat-clip-mcp = "cheat_clip_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cheat_clip_mcp"]

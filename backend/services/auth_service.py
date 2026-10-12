@@ -29,9 +29,27 @@ def _password() -> str:
     return (os.environ.get("DASHBOARD_LOGIN_PASSWORD") or "").strip()
 
 
+def _mcp_api_key() -> str:
+    return (os.environ.get("MCP_API_KEY") or "").strip()
+
+
 def auth_enabled() -> bool:
-    """Authentication is required only when both credentials are configured."""
+    """Authentication is required when dashboard credentials OR an MCP API key is configured."""
+    return bool(_username() and _password()) or bool(_mcp_api_key())
+
+
+def login_available() -> bool:
+    """Whether username/password login is configured (browser dashboard login)."""
     return bool(_username() and _password())
+
+
+def mcp_api_key_configured() -> bool:
+    return bool(_mcp_api_key())
+
+
+def verify_mcp_api_key(provided: str) -> bool:
+    key = _mcp_api_key()
+    return bool(key) and bool(provided) and hmac.compare_digest((provided or "").strip(), key)
 
 
 def _secret() -> bytes:

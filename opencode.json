@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "cheat-clip-pro": {
+      "type": "local",
+      "command": ["uv", "run", "--directory", "mcp", "cheat-clip-mcp"],
+      "enabled": true,
+      "environment": {
+        "CCP_BASE_URL": "{env:CHEAT_CLIP_BASE_URL}",
+        "MCP_API_KEY": "{env:MCP_API_KEY}",
+        "CCP_OUTPUT_DIR": "./cheat-clip-output"
+      }
+    }
+  }
+}
