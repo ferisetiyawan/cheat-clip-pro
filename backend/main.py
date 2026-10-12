@@ -5,17 +5,24 @@ import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Initialize environment and configuration
 import backend.config
 from backend.config import logger
 from backend.routers import (
     analyze_router,
+    auth_router,
     cookies_router,
     downloads_router,
     media_router,
     render_router,
     system_router,
+)
+from backend.services.auth_service import (
+    SESSION_COOKIE,
+    auth_enabled,
+    verify_session_token,
 )
 # Re-exports for backwards compatibility
 from backend.schemas.analyze import (
@@ -125,7 +132,47 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+# Endpoints reachable without a dashboard session.
+_AUTH_PUBLIC_PATHS = {
+    "/api/auth/login",
+    "/api/auth/status",
+    "/api/auth/logout",
+    "/api/health",
+}
+
+
+@app.middleware("http")
+async def dashboard_auth_gate(request: Request, call_next):
+    """
+    Gate every /api/* route behind a dashboard session when DASHBOARD_LOGIN_USERNAME
+    and DASHBOARD_LOGIN_PASSWORD are configured. Disabled (open) otherwise.
+    """
+    path = request.url.path
+    if (
+        not auth_enabled()
+        or request.method == "OPTIONS"
+        or not path.startswith("/api/")
+        or path in _AUTH_PUBLIC_PATHS
+    ):
+        return await call_next(request)
+
+    token = request.cookies.get(SESSION_COOKIE)
+    if not token:
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            token = auth_header[7:].strip()
+
+    if verify_session_token(token):
+        return await call_next(request)
+
+    return JSONResponse(
+        status_code=401,
+        content={"detail": "Authentication required. Please log in to the dashboard."},
+    )
+
+
 # Include Modular Routers
+app.include_router(auth_router)
 app.include_router(analyze_router)
 app.include_router(render_router)
 app.include_router(media_router)

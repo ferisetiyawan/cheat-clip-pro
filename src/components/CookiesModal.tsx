@@ -14,12 +14,14 @@ interface CookiesModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCookieStatusChange?: (hasCookies: boolean) => void;
+  envCookiesConfigured?: boolean;
 }
 
 export const CookiesModal: React.FC<CookiesModalProps> = ({
   isOpen,
   onClose,
   onCookieStatusChange,
+  envCookiesConfigured = false,
 }) => {
   const { t } = useLanguage();
   const [cookieText, setCookieText] = useState<string>('');
@@ -29,6 +31,7 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [showOverrideWarning, setShowOverrideWarning] = useState<boolean>(false);
 
   const loadStatus = () => {
     const raw = getStoredCookies();
@@ -91,7 +94,7 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
     if (file) readFileContent(file);
   };
 
-  const handleSave = () => {
+  const performSave = () => {
     if (!cookieText.trim()) {
       setMessage({ text: t.cookies.emptyError, type: 'error' });
       return;
@@ -115,6 +118,19 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSave = () => {
+    if (!cookieText.trim()) {
+      setMessage({ text: t.cookies.emptyError, type: 'error' });
+      return;
+    }
+    // Warn before overriding server-managed (ENV) cookies with local ones.
+    if (envCookiesConfigured && !isCookieActive) {
+      setShowOverrideWarning(true);
+      return;
+    }
+    performSave();
   };
 
   const executeDeleteCookies = () => {
@@ -164,7 +180,9 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
               <div className="cookie-status-box active">
                 <span className="status-icon">🛡️</span>
                 <div className="status-info">
-                  <strong>{t.cookies.installedTitle}</strong>
+                  <strong>
+                    {envCookiesConfigured ? t.envOverride.cookiesOverrideActive : t.cookies.installedTitle}
+                  </strong>
                   <p>
                     {t.cookies.installedDesc(cookieSize)}
                   </p>
@@ -178,6 +196,21 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
                       </div>
                     </details>
                   )}
+                  {envCookiesConfigured && (
+                    <button
+                      type="button"
+                      className="btn-danger-outline"
+                      onClick={() => {
+                        removeStoredCookies();
+                        loadStatus();
+                        setMessage({ text: t.envOverride.resetSuccess, type: 'info' });
+                      }}
+                      disabled={isLoading}
+                      style={{ marginTop: '0.6rem' }}
+                    >
+                      ↺ {t.envOverride.resetToServerDefault}
+                    </button>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -188,6 +221,14 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
                 >
                   {t.cookies.clearCookiesBtn}
                 </button>
+              </div>
+            ) : envCookiesConfigured ? (
+              <div className="cookie-status-box active" style={{ borderColor: 'rgba(56,189,248,0.35)', background: 'rgba(56,189,248,0.08)' }}>
+                <span className="status-icon">🔒</span>
+                <div className="status-info">
+                  <strong style={{ color: '#38bdf8' }}>{t.envOverride.usingServerCookiesTitle}</strong>
+                  <p>{t.envOverride.usingServerCookiesDesc}</p>
+                </div>
               </div>
             ) : (
               <div className="cookie-status-box warning">
@@ -311,6 +352,39 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
                   disabled={isLoading}
                 >
                   {isLoading ? t.cookies.deletingBtn : t.cookies.clearCookiesConfirmPurge}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Override server-managed (ENV) cookies warning */}
+        {showOverrideWarning && (
+          <div className="custom-confirm-modal-overlay" style={{ zIndex: 10006 }}>
+            <div className="custom-confirm-modal-card">
+              <div className="confirm-modal-icon-wrap" style={{ background: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.4)', color: '#f59e0b' }}>
+                🔐
+              </div>
+              <h3 className="confirm-modal-title">{t.envOverride.changeCookiesTitle}</h3>
+              <p className="confirm-modal-desc">{t.envOverride.changeCookiesDesc}</p>
+              <div className="confirm-modal-actions">
+                <button
+                  type="button"
+                  className="btn-confirm-cancel"
+                  onClick={() => setShowOverrideWarning(false)}
+                  disabled={isLoading}
+                >
+                  {t.envOverride.cancel}
+                </button>
+                <button
+                  type="button"
+                  className="btn-confirm-purge"
+                  onClick={() => {
+                    setShowOverrideWarning(false);
+                    performSave();
+                  }}
+                  disabled={isLoading}
+                >
+                  {t.envOverride.overrideAnyway}
                 </button>
               </div>
             </div>

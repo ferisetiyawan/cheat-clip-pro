@@ -15,8 +15,10 @@ from backend.config import (
     TEMP_DIR,
     UPLOADS_DIR,
     compute_audio_energy_heatmap,
+    env_cookies_configured,
     get_video_file_metadata,
     logger,
+    resolve_cookies,
     transcribe_local_video_file,
 )
 from backend.schemas.analyze import (
@@ -203,6 +205,7 @@ def health_check(refresh: bool = False):
         "allow_app_updates": is_update_allowed(),
         "proxy_configured": bool(proxy),
         "gemini_env_configured": has_gemini,
+        "cookies_env_configured": env_cookies_configured(),
         "supadata_keys_count": len(keys),
         "supadata": supadata_info
     }
@@ -228,6 +231,9 @@ async def analyze_video(request: AnalyzeRequest):
     async def stream():
         gemini_key = (request.api_key or os.environ.get("GEMINI_API_KEY") or '').strip()
         is_mock = gemini_key.lower() == "mock"
+        # Fall back to server-configured (ENV) YouTube cookies when the browser
+        # did not supply any; per-request cookies always take precedence.
+        effective_cookies = resolve_cookies(request.cookies)
 
         if not gemini_key:
             yield _sse({"error": "Gemini API Key is required. Enter it in the web interface.", "status": 400})
@@ -509,7 +515,7 @@ async def analyze_video(request: AnalyzeRequest):
             channel = ""
             expected_video_lang = None
             try:
-                metadata = await asyncio.to_thread(fetch_video_metadata, canonical_url, request.proxy, request.cookies)
+                metadata = await asyncio.to_thread(fetch_video_metadata, canonical_url, request.proxy, effective_cookies)
                 title    = metadata["title"]
                 channel  = metadata.get("channel", "")
                 duration = metadata["duration"]
@@ -645,7 +651,7 @@ async def analyze_video(request: AnalyzeRequest):
 
                 try:
                     task = asyncio.create_task(
-                        asyncio.to_thread(fetch_transcript, video_id, request.proxy, progress_callback, request.cookies, expected_video_lang)
+                        asyncio.to_thread(fetch_transcript, video_id, request.proxy, progress_callback, effective_cookies, expected_video_lang)
                     )
 
                     while not task.done():
@@ -732,7 +738,7 @@ async def analyze_video(request: AnalyzeRequest):
                                 })
 
                             audio_dl_task = asyncio.create_task(
-                                asyncio.to_thread(download_youtube_audio_file, video_id, None, request.proxy, request.cookies, audio_dl_progress)
+                                asyncio.to_thread(download_youtube_audio_file, video_id, None, request.proxy, effective_cookies, audio_dl_progress)
                             )
                             while not audio_dl_task.done():
                                 try:

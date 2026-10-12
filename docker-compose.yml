@@ -58,6 +58,17 @@ services:
       WEBSHARE_RETRIES: ${WEBSHARE_RETRIES:-5}
       # Lock down admin/system endpoints with a token for public deployments.
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      # Dashboard login gate. Set BOTH to require a login; leave empty to keep
+      # the dashboard open (e.g. local/desktop use).
+      DASHBOARD_LOGIN_USERNAME: ${DASHBOARD_LOGIN_USERNAME:-}
+      DASHBOARD_LOGIN_PASSWORD: ${DASHBOARD_LOGIN_PASSWORD:-}
+      # Optional fixed secret for session tokens (recommended in production so
+      # logins survive restarts). Falls back to a value derived from the password.
+      DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:-}
+      # Server-default YouTube cookies used when the browser sends none.
+      # Provide raw cookie content, or a mounted file path.
+      YOUTUBE_COOKIES: ${YOUTUBE_COOKIES:-}
+      YOUTUBE_COOKIES_FILE: ${YOUTUBE_COOKIES_FILE:-}
       # CORS — only needed if the SPA is served from a different origin than /api.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
       # Automatic temp storage cleanup (TTL + storage quota).

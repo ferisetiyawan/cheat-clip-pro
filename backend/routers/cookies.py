@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from backend.config import (
     COOKIES_PATH,
     ROOT_COOKIES_PATH,
+    env_cookies_configured,
     get_effective_cookies_path,
     logger,
 )
@@ -149,10 +150,12 @@ def get_youtube_cookies_status():
             except Exception:
                 pass
 
+    env_active = env_cookies_configured()
     return {
-        "exists": False,
-        "has_cookies": False,
-        "storage": "localStorage",
+        "exists": env_active,
+        "has_cookies": env_active,
+        "env_configured": env_active,
+        "storage": "env" if env_active else "localStorage",
         "size": 0,
         "sample_lines": [],
         "cookies_content": ""

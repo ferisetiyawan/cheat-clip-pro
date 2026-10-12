@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from backend.config import EXPORTS_DIR, logger
+from backend.config import EXPORTS_DIR, logger, resolve_cookies
 from backend.schemas.downloads import RawClipDownloadRequest, RawVideoDownloadRequest
 from backend.services.download_service import (
     raw_clip_download_jobs,
@@ -56,7 +56,7 @@ async def handle_download_raw_video(req: RawVideoDownloadRequest, background_tas
         "error": None
     }
 
-    background_tasks.add_task(run_raw_download_job, job_id, v_url, out_path, filename, download_title, req.cookies)
+    background_tasks.add_task(run_raw_download_job, job_id, v_url, out_path, filename, download_title, resolve_cookies(req.cookies))
     return {"job_id": job_id, "status": "starting"}
 
 
@@ -106,7 +106,7 @@ async def handle_download_raw_clip(req: RawClipDownloadRequest, background_tasks
         req.start_time,
         req.end_time,
         req.title,
-        req.cookies
+        resolve_cookies(req.cookies)
     )
     return {"job_id": job_id, "status": "starting"}
 

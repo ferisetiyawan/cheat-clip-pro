@@ -115,3 +115,57 @@ except ImportError:
 
 UPLOADS_DIR = TEMP_DIR / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ── Environment-provided YouTube cookies (server-wide default) ────────────────
+# Set YOUTUBE_COOKIES (raw Netscape/JSON content) or YOUTUBE_COOKIES_FILE (a
+# mounted file path) to provide server-default cookies. Per-request cookies sent
+# by the browser take precedence; when none are supplied the env cookies are used.
+_env_cookies_cache: dict = {"signature": None, "value": None}
+
+
+def get_env_cookies_content():
+    """Returns normalized Netscape cookies from the environment, or None."""
+    raw = os.environ.get("YOUTUBE_COOKIES", "") or ""
+
+    if not raw.strip():
+        path = (os.environ.get("YOUTUBE_COOKIES_FILE", "") or "").strip()
+        if path:
+            try:
+                p = Path(path)
+                if p.exists() and p.is_file() and p.stat().st_size > 0:
+                    raw = p.read_text(encoding="utf-8", errors="ignore")
+            except Exception as e:
+                logger.warning(f"Could not read YOUTUBE_COOKIES_FILE '{path}': {e}")
+
+    if not raw or not raw.strip():
+        return None
+
+    signature = f"{len(raw)}:{hash(raw)}"
+    if _env_cookies_cache["signature"] == signature:
+        return _env_cookies_cache["value"]
+
+    value = None
+    try:
+        normalized = normalize_to_netscape(raw)
+        if normalized and len(normalized.strip()) >= 10:
+            value = normalized
+    except Exception:
+        value = raw.strip()
+    if value is None and len(raw.strip()) >= 10:
+        value = raw.strip()
+
+    _env_cookies_cache["signature"] = signature
+    _env_cookies_cache["value"] = value
+    return value
+
+
+def env_cookies_configured() -> bool:
+    return get_env_cookies_content() is not None
+
+
+def resolve_cookies(user_cookies):
+    """Effective cookies for a request: user-supplied first, else env default."""
+    if user_cookies and str(user_cookies).strip():
+        return user_cookies
+    return get_env_cookies_content()

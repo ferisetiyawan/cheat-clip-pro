@@ -16,6 +16,7 @@ from backend.config import (
     logger,
     render_clip_to_mp4,
     render_title_overlay_png,
+    resolve_cookies,
     transcribe_clip_words,
 )
 from backend.schemas.render import RenderBatchRequest, RenderSettingsModel
@@ -556,7 +557,7 @@ async def process_batch_rendering(batch_id: str, request: RenderBatchRequest):
             else:
                 target_url = f"https://www.youtube.com/watch?v={target_url}"
 
-        cookies_content = getattr(request, "cookies", None)
+        cookies_content = resolve_cookies(getattr(request, "cookies", None))
         is_merged = bool(settings and getattr(settings, "render_mode", "separate") == "merged")
         if is_merged:
             batch["current_clip_index"] = 0
@@ -612,7 +613,7 @@ async def process_batch_retry(batch_id: str, clip_indices: List[int]):
             else:
                 target_url = f"https://www.youtube.com/watch?v={target_url}"
 
-        cookies_content = getattr(request, "cookies", None)
+        cookies_content = resolve_cookies(getattr(request, "cookies", None))
         is_merged = bool(batch.get("is_merged")) or bool(settings and getattr(settings, "render_mode", "separate") == "merged")
         if is_merged:
             batch["current_clip_index"] = 0

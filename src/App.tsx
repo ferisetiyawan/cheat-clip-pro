@@ -7,6 +7,7 @@ import { ClipTrimmerModal } from './components/ClipTrimmerModal';
 import { AppUpdateModal } from './components/AppUpdateModal';
 import { resilientFetch } from './utils/api';
 import { getStoredCookies, hasStoredCookies } from './utils/cookieUtils';
+import { fetchAuthStatus, logout } from './utils/auth';
 import { extractAudioFromVideoClient } from './utils/audioExtractor';
 import { renderClipClientSide, triggerBrowserDownload } from './services/clientRenderer';
 import { useLanguage } from './locales';
@@ -56,6 +57,13 @@ export default function App() {
     return false;
   });
   const [hasCookies, setHasCookies] = useState(false);
+  // Server-managed (ENV) defaults and dashboard auth state
+  const [envGeminiConfigured, setEnvGeminiConfigured] = useState(false);
+  const [envCookiesConfigured, setEnvCookiesConfigured] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authUsername, setAuthUsername] = useState<string | null>(null);
+  const [allowKeyOverride, setAllowKeyOverride] = useState(false);
+  const [showKeyOverrideWarning, setShowKeyOverrideWarning] = useState(false);
   const [isDownloadingRaw, setIsDownloadingRaw] = useState(false);
   const [rawDownloadProgress, setRawDownloadProgress] = useState<{
     jobId: string;
@@ -173,6 +181,30 @@ export default function App() {
       window.removeEventListener('focus', checkCookies);
     };
   }, []);
+
+  // Load server-managed flags (ENV Gemini key / YouTube cookies) + auth state
+  useEffect(() => {
+    fetch('/api/health', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setEnvGeminiConfigured(Boolean(d.gemini_env_configured));
+        setEnvCookiesConfigured(Boolean(d.cookies_env_configured));
+      })
+      .catch(() => { /* backend may still be starting */ });
+
+    fetchAuthStatus()
+      .then((s) => {
+        setAuthRequired(s.auth_required);
+        setAuthUsername(s.username);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.reload();
+  };
 
   // Query server update permissions (disabled on remote VPS/Docker for security)
   useEffect(() => {
@@ -1282,8 +1314,8 @@ export default function App() {
       if (!url.trim()) return;
     }
 
-    // Require an API key before making any request
-    if (!apiKey.trim()) {
+    // Require an API key only when the server has no ENV-configured Gemini key
+    if (!apiKey.trim() && !envGeminiConfigured) {
       setError(t.errors.apiKeyRequired);
       return;
     }
@@ -2246,6 +2278,10 @@ Transcript:
     line => currentTime >= (line.start - 0.05) && currentTime <= (line.end + 0.25)
   );
 
+  // Cookies are active when provided locally OR managed by the server (ENV)
+  const cookiesActive = hasCookies || envCookiesConfigured;
+  const usingServerGeminiKey = envGeminiConfigured && !apiKey.trim() && !allowKeyOverride;
+
   return (
     <div className="app-container">
       {/* Toast Notification */}
@@ -2285,6 +2321,30 @@ Transcript:
           </div>
         </div>
         <div className="header-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          {authRequired && (
+            <button
+              type="button"
+              className="cookie-header-btn"
+              onClick={handleLogout}
+              title={authUsername ? `${t.auth.logoutTooltip} (${authUsername})` : t.auth.logoutTooltip}
+              style={{
+                padding: '0.45rem 0.85rem',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <span>⎋ {t.auth.logout}</span>
+            </button>
+          )}
           <button
             type="button"
             className="cookie-header-btn"
@@ -2294,20 +2354,22 @@ Transcript:
               fontSize: '0.8rem',
               fontWeight: 600,
               borderRadius: '8px',
-              background: hasCookies ? 'rgba(34, 197, 94, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-              border: hasCookies ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(255, 255, 255, 0.1)',
-              color: hasCookies ? '#4ade80' : 'var(--text-secondary)',
+              background: cookiesActive ? 'rgba(34, 197, 94, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+              border: cookiesActive ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(255, 255, 255, 0.1)',
+              color: cookiesActive ? '#4ade80' : 'var(--text-secondary)',
               display: 'flex',
               alignItems: 'center',
               gap: '0.4rem',
               cursor: 'pointer',
               transition: 'all 0.2s ease'
             }}
-            title={hasCookies ? t.header.cookiesTooltipActive : t.header.cookiesTooltipSetup}
+            title={cookiesActive ? t.header.cookiesTooltipActive : t.header.cookiesTooltipSetup}
           >
             <span>🍪 {t.header.cookiesBtn}</span>
             <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>
-              {hasCookies ? t.header.cookiesStatusActive : t.header.cookiesStatusSetup}
+              {envCookiesConfigured && !hasCookies
+                ? t.envOverride.serverManagedShort
+                : cookiesActive ? t.header.cookiesStatusActive : t.header.cookiesStatusSetup}
             </span>
           </button>
           {allowAppUpdates && (
@@ -2782,12 +2844,20 @@ Transcript:
                 🤖 {t.form.aiSettingsTitle}
               </h3>
               
-              {/* API Key input — required */}
+              {/* API Key input — required unless server-managed via ENV */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  <span>
+                  <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
                     {t.form.apiKeyLabel}
-                    <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', fontWeight: 700, color: '#f87171', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '0.1rem 0.35rem', letterSpacing: '0.04em' }}>{t.form.apiKeyRequired}</span>
+                    {!envGeminiConfigured && (
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f87171', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '0.1rem 0.35rem', letterSpacing: '0.04em' }}>{t.form.apiKeyRequired}</span>
+                    )}
+                    {usingServerGeminiKey && (
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#38bdf8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '4px', padding: '0.1rem 0.35rem', letterSpacing: '0.03em' }}>🔒 {t.envOverride.serverManaged}</span>
+                    )}
+                    {envGeminiConfigured && apiKey.trim() && (
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '0.1rem 0.35rem', letterSpacing: '0.03em' }}>{t.envOverride.overrideBadge}</span>
+                    )}
                   </span>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <a
@@ -2799,35 +2869,74 @@ Transcript:
                     >
                       🔑 {t.form.getFreeKey}
                     </a>
-                    <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: '0.75rem' }}>|</span>
-                    <span
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      style={{ cursor: 'pointer', color: 'var(--primary)', fontSize: '0.75rem' }}
-                    >
-                      {showApiKey ? t.form.hideKey : t.form.showKey}
-                    </span>
+                    {!usingServerGeminiKey && (
+                      <>
+                        <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: '0.75rem' }}>|</span>
+                        <span
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          style={{ cursor: 'pointer', color: 'var(--primary)', fontSize: '0.75rem' }}
+                        >
+                          {showApiKey ? t.form.hideKey : t.form.showKey}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </label>
-                <input
-                  id="gemini-key-input"
-                  type={showApiKey ? 'text' : 'password'}
-                  className={`form-input${!apiKey.trim() ? ' input-error-highlight' : ''}`}
-                  placeholder={t.form.apiKeyPlaceholder}
-                  value={apiKey}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setApiKey(val);
-                    localStorage.setItem('cheat_clip_gemini_api_key', val);
-                    if (val.trim()) setError(null);
-                  }}
-                  disabled={loading}
-                  style={{ height: '42px' }}
-                />
-                {!apiKey.trim() && (
-                  <span style={{ fontSize: '0.75rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                    {t.form.apiKeyErrorHint}
-                  </span>
+
+                {usingServerGeminiKey ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '0.75rem 0.9rem', borderRadius: '10px', background: 'rgba(56,189,248,0.07)', border: '1px solid rgba(56,189,248,0.25)' }}>
+                    <div>
+                      <strong style={{ fontSize: '0.82rem', color: '#38bdf8' }}>{t.envOverride.usingServerKeyTitle}</strong>
+                      <p style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>{t.envOverride.usingServerKeyDesc}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowKeyOverrideWarning(true)}
+                      disabled={loading}
+                      style={{ alignSelf: 'flex-start', padding: '0.35rem 0.8rem', fontSize: '0.75rem', fontWeight: 700, borderRadius: '7px', cursor: 'pointer', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.35)' }}
+                    >
+                      {t.envOverride.useMyOwnKey}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      id="gemini-key-input"
+                      type={showApiKey ? 'text' : 'password'}
+                      className={`form-input${!apiKey.trim() && !envGeminiConfigured ? ' input-error-highlight' : ''}`}
+                      placeholder={envGeminiConfigured ? t.envOverride.overrideKeyPlaceholder : t.form.apiKeyPlaceholder}
+                      value={apiKey}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setApiKey(val);
+                        localStorage.setItem('cheat_clip_gemini_api_key', val);
+                        if (val.trim()) setError(null);
+                      }}
+                      disabled={loading}
+                      style={{ height: '42px' }}
+                    />
+                    {envGeminiConfigured && apiKey.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          localStorage.removeItem('cheat_clip_gemini_api_key');
+                          setApiKey('');
+                          setAllowKeyOverride(false);
+                          setToastMessage(t.envOverride.resetSuccess);
+                        }}
+                        disabled={loading}
+                        style={{ alignSelf: 'flex-start', padding: '0.25rem 0.6rem', fontSize: '0.72rem', fontWeight: 600, borderRadius: '6px', cursor: 'pointer', color: 'var(--primary)', background: 'transparent', border: '1px solid rgba(129,140,248,0.35)' }}
+                      >
+                        ↺ {t.envOverride.resetToServerDefault}
+                      </button>
+                    )}
+                    {!apiKey.trim() && !envGeminiConfigured && (
+                      <span style={{ fontSize: '0.75rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        {t.form.apiKeyErrorHint}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -4750,7 +4859,41 @@ Transcript:
         isOpen={isCookiesModalOpen}
         onClose={() => setIsCookiesModalOpen(false)}
         onCookieStatusChange={setHasCookies}
+        envCookiesConfigured={envCookiesConfigured}
       />
+
+      {/* Server-managed Gemini key — override warning */}
+      {showKeyOverrideWarning && (
+        <div className="custom-confirm-modal-overlay" style={{ zIndex: 10020 }}>
+          <div className="custom-confirm-modal-card">
+            <div className="confirm-modal-icon-wrap" style={{ background: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.4)', color: '#f59e0b' }}>
+              🔐
+            </div>
+            <h3 className="confirm-modal-title">{t.envOverride.changeKeyTitle}</h3>
+            <p className="confirm-modal-desc">{t.envOverride.changeKeyDesc}</p>
+            <div className="confirm-modal-actions">
+              <button
+                type="button"
+                className="btn-confirm-cancel"
+                onClick={() => setShowKeyOverrideWarning(false)}
+              >
+                {t.envOverride.cancel}
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-purge"
+                onClick={() => {
+                  setAllowKeyOverride(true);
+                  setShowKeyOverrideWarning(false);
+                  setTimeout(() => document.getElementById('gemini-key-input')?.focus(), 60);
+                }}
+              >
+                {t.envOverride.overrideAnyway}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* App Update & Restart Modal */}
       <AppUpdateModal

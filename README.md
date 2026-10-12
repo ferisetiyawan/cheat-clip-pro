@@ -139,6 +139,10 @@ docker compose up -d --build
 | `WEBSHARE_USERNAME` / `WEBSHARE_PASSWORD` | — | Webshare rotating proxy credentials |
 | `WEBSHARE_LOCATIONS` / `WEBSHARE_RETRIES` | `US,GB,DE` / `5` | Webshare exit locations and retry count |
 | `ADMIN_API_KEY` | — | Protect admin endpoints with a token |
+| `DASHBOARD_LOGIN_USERNAME` / `DASHBOARD_LOGIN_PASSWORD` | — | Require a dashboard login (set **both** to enable) |
+| `DASHBOARD_SESSION_SECRET` | — | Optional fixed signing secret so logins survive restarts |
+| `YOUTUBE_COOKIES` | — | Server-default YouTube cookies (raw Netscape/JSON content) |
+| `YOUTUBE_COOKIES_FILE` | — | Server-default cookies from a mounted file path |
 | `ALLOWED_ORIGINS` | — | Extra CORS origins (only if SPA and API differ) |
 | `TEMP_MAX_AGE_SECONDS` | `3600` | Delete temp files older than this |
 | `TEMP_STORAGE_QUOTA_GB` | `5.0` | Temp storage ceiling (FIFO purge) |
