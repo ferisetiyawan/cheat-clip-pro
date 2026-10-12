@@ -20,8 +20,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 \
         libglib2.0-0 \
         curl \
+        unzip \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Deno: JS runtime used by yt-dlp to solve modern YouTube player challenges.
+# yt-dlp auto-detects it (see get_yt_dlp_base_cmd) and it materially improves
+# download reliability on servers without cookies.
+ARG DENO_VERSION=v2.1.4
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh -s "${DENO_VERSION}" \
+    && deno --version
 
 WORKDIR /app
 

@@ -135,7 +135,9 @@ docker compose up -d --build
 | --- | --- | --- |
 | `GEMINI_API_KEY` | — | Server-side default Gemini key |
 | `SUPADATA_API_KEYS` | — | Supadata transcript keys (comma/space separated) |
-| `WEBSHARE_PROXY` / `PROXY_URL` | — | Residential proxy to avoid YouTube IP bans |
+| `WEBSHARE_PROXY` / `PROXY_URL` | — | Full residential proxy URL to avoid YouTube IP bans |
+| `WEBSHARE_USERNAME` / `WEBSHARE_PASSWORD` | — | Webshare rotating proxy credentials |
+| `WEBSHARE_LOCATIONS` / `WEBSHARE_RETRIES` | `US,GB,DE` / `5` | Webshare exit locations and retry count |
 | `ADMIN_API_KEY` | — | Protect admin endpoints with a token |
 | `ALLOWED_ORIGINS` | — | Extra CORS origins (only if SPA and API differ) |
 | `TEMP_MAX_AGE_SECONDS` | `3600` | Delete temp files older than this |

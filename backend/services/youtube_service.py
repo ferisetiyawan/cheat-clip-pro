@@ -897,11 +897,12 @@ def fetch_transcript(
 
     error_lines.append("\nRecommended solutions:")
     if not (proxy_cfg or proxy_url):
-        error_lines.append("  1. Configure a proxy in backend/.env (e.g. WEBSHARE_USERNAME & WEBSHARE_PASSWORD, or WEBSHARE_PROXY / PROXY_URL) to bypass datacenter IP bans.")
+        error_lines.append("  1. Configure a residential proxy in the server environment (WEBSHARE_USERNAME & WEBSHARE_PASSWORD, or WEBSHARE_PROXY / PROXY_URL) to bypass datacenter IP bans.")
     else:
-        error_lines.append("  1. Verify your proxy quota/credentials in backend/.env or rotate your residential proxy IP.")
-    error_lines.append("  2. If using Supadata, configure SUPADATA_API_KEYS in backend/.env for residential cloud extraction.")
-    error_lines.append("  3. Upload custom subtitles manually (.srt or .txt file) using the 'Upload Custom Subtitle' setting above.")
+        error_lines.append("  1. Verify your proxy quota/credentials in the server environment or rotate your residential proxy IP.")
+    error_lines.append("  2. Configure SUPADATA_API_KEYS (residential cloud transcript extraction) in the server environment.")
+    error_lines.append("  3. Paste YouTube cookies via the 'Cookies' button in the app (helps bypass bot checks on some videos).")
+    error_lines.append("  4. Upload custom subtitles manually (.srt or .txt file) using the 'Upload Custom Subtitle' setting above.")
 
     full_error_detail = "\n".join(error_lines)
     logger.error(f"Subtitle retrieval exhausted all {len(attempt_history)} methods:\n{full_error_detail}")

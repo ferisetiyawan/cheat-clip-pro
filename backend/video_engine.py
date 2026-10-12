@@ -418,6 +418,19 @@ def get_yt_dlp_base_cmd(
         "--force-ipv4"
     ])
 
+    # Route the download through the configured residential proxy (if any) so
+    # datacenter-IP bans are bypassed for the media download too, not just the
+    # transcript tiers. get_proxy_url() also synthesizes a Webshare URL from
+    # WEBSHARE_USERNAME / WEBSHARE_PASSWORD.
+    try:
+        from backend.utils.proxy import get_proxy_url
+        proxy_url = get_proxy_url()
+        if proxy_url:
+            cmd.extend(["--proxy", proxy_url])
+            logger.info("yt-dlp download routed through the configured proxy.")
+    except Exception as proxy_err:
+        logger.warning(f"Could not resolve proxy for yt-dlp download: {proxy_err}")
+
     if cookies_path and Path(cookies_path).exists() and Path(cookies_path).stat().st_size > 0:
         logger.info(f"Using ephemeral YouTube cookies from: {cookies_path}")
         cmd.extend(["--cookies", str(cookies_path)])
