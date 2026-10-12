@@ -116,7 +116,10 @@ docker compose up -d --build
 ### Deploy on Coolify
 
 1. Create a new Resource → **Docker Compose**, pointed at this repo.
-2. Set the exposed port to **80** (only the `frontend` service publishes a port; the backend stays internal).
+2. Open **Domains → Add domain** and bind the domain to the **`frontend`** service with **internal port `80`**
+   (e.g. `https://yourdomain.com:80`). **Do not** give the `backend` service a public domain — it is internal
+   and reached by the frontend over the Compose network as `backend:8000`. Routing the domain to the backend
+   is the usual cause of `GET / → 404` and a blank page.
 3. Add environment variables (all optional):
    - `GEMINI_API_KEY` — server default AI key (users can also paste their own in the UI).
    - `SUPADATA_API_KEYS`, `WEBSHARE_PROXY` — reliable YouTube transcript fetching.

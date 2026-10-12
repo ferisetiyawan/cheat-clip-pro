@@ -4,11 +4,35 @@
 #   frontend  -> nginx: serves the React SPA and reverse-proxies /api -> backend
 #   backend   -> FastAPI + FFmpeg + yt-dlp + Whisper (video download/render)
 #
-# The frontend is the only service that publishes a host port, so Coolify's
-# reverse proxy (Traefik/Caddy) should target the frontend on port 80.
+# IMPORTANT — Coolify routing:
+#   The frontend is the ONLY public entrypoint. In Coolify, open
+#   Domains -> Add domain -> Service = "frontend", Internal port = 80.
+#   The backend is private (reached over the Compose network as backend:8000)
+#   and must NOT be given a public domain.
+#   `frontend` is listed first so Coolify's default domain maps to it.
 # Built natively for linux/arm64 and linux/amd64 — no emulation required.
 # ==============================================================================
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:8000
+    # Host port is only for local `docker compose up`. In Coolify, routing is
+    # done through Domains (Service = frontend, Internal port = 80).
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
   backend:
     build:
       context: .
@@ -42,8 +66,7 @@ services:
       - media_temp_legacy:/app/backend/temp
       - media_exports:/app/backend/exports
       - custom_fonts:/app/backend/fonts
-    expose:
-      - "8000"
+    # No public domain and no published host port: the backend is internal only.
     # Resource guards. Raise BACKEND_MEM_LIMIT if your server has more than
     # ~4 GB RAM (long videos + Whisper are memory hungry); keep it below the
     # host RAM so the Coolify proxy and OS stay responsive.
@@ -56,24 +79,6 @@ services:
       timeout: 10s
       start_period: 90s
       retries: 5
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      BACKEND_URL: http://backend:8000
-    ports:
-      - "${FRONTEND_PORT:-3000}:80"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
-      interval: 30s
-      timeout: 5s
-      start_period: 10s
-      retries: 3
 
 volumes:
   media_temp:
