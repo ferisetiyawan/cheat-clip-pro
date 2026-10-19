@@ -290,25 +290,27 @@ async def analyze_video(request: AnalyzeRequest):
         elif (UPLOADS_DIR / os.path.basename(req_clean.split("?")[0])).exists():
             is_uploaded = True
         else:
-            matches = list(UPLOADS_DIR.glob(f"*{req_clean}*"))
-            if matches:
+            from backend.routers.media import _find_video_file_on_disk
+            found_candidate = _find_video_file_on_disk(req_clean)
+            if found_candidate and found_candidate.exists():
                 is_uploaded = True
+                uploaded_file_path = found_candidate
 
         if is_uploaded:
             if uploaded_file_path is None:
-                if os.path.exists(req_clean):
+                from backend.routers.media import _find_video_file_on_disk
+                found = _find_video_file_on_disk(req_clean)
+                if found and found.exists():
+                    uploaded_file_path = found
+                elif os.path.exists(req_clean):
                     uploaded_file_path = Path(req_clean)
                 elif (UPLOADS_DIR / os.path.basename(req_clean.split("?")[0])).exists():
                     uploaded_file_path = UPLOADS_DIR / os.path.basename(req_clean.split("?")[0])
                 elif (TEMP_DIR / os.path.basename(req_clean.split("?")[0])).exists():
                     uploaded_file_path = TEMP_DIR / os.path.basename(req_clean.split("?")[0])
                 else:
-                    matches = list(UPLOADS_DIR.glob(f"*{req_clean}*"))
-                    if matches:
-                        uploaded_file_path = matches[0]
-                    else:
-                        yield _sse({"error": "Uploaded video file not found on disk. Please upload again.", "status": 404})
-                        return
+                    yield _sse({"error": "Uploaded video file not found on disk. Please upload again.", "status": 404})
+                    return
 
             video_id = uploaded_file_path.stem
             canonical_url = req_clean if is_gdrive else f"/api/video/{uploaded_file_path.name}"
@@ -377,6 +379,13 @@ async def analyze_video(request: AnalyzeRequest):
                 })
 
             # ── Step 3: Speech Recognition via Whisper AI ───────────────────
+            expected_video_lang = None
+            req_lang = (request.transcript_language or "").lower().strip()
+            if req_lang in ("id", "in"):
+                expected_video_lang = "id"
+            elif req_lang == "en":
+                expected_video_lang = "en"
+
             if request.subtitles:
                 yield _sse({
                     "step": 3,
@@ -433,7 +442,7 @@ async def analyze_video(request: AnalyzeRequest):
 
                 try:
                     task = asyncio.create_task(
-                        asyncio.to_thread(transcribe_local_video_file, uploaded_file_path, whisper_progress)
+                        asyncio.to_thread(transcribe_local_video_file, uploaded_file_path, whisper_progress, expected_video_lang)
                     )
                     while not task.done():
                         try:
@@ -514,6 +523,12 @@ async def analyze_video(request: AnalyzeRequest):
 
             channel = ""
             expected_video_lang = None
+            req_lang = (request.transcript_language or "").lower().strip()
+            if req_lang in ("id", "in"):
+                expected_video_lang = "id"
+            elif req_lang == "en":
+                expected_video_lang = "en"
+
             try:
                 metadata = await asyncio.to_thread(fetch_video_metadata, canonical_url, request.proxy, effective_cookies)
                 title    = metadata["title"]
@@ -522,11 +537,14 @@ async def analyze_video(request: AnalyzeRequest):
                 heatmap  = metadata.get("heatmap") or []
                 is_live  = metadata.get("is_live", False)
                 live_status = metadata.get("live_status", "not_live")
-                audio_lang_raw = (metadata.get("audio_language") or "").lower().strip()
-                if audio_lang_raw in ("id", "in"):
-                    expected_video_lang = "id"
-                elif audio_lang_raw == "en":
-                    expected_video_lang = "en"
+                
+                # If transcript_language was not explicitly provided by request, infer from metadata
+                if not expected_video_lang:
+                    audio_lang_raw = (metadata.get("audio_language") or "").lower().strip()
+                    if audio_lang_raw in ("id", "in"):
+                        expected_video_lang = "id"
+                    elif audio_lang_raw == "en":
+                        expected_video_lang = "en"
                 yield _sse({
                     "step": 1,
                     "step_progress": 100,
@@ -600,7 +618,7 @@ async def analyze_video(request: AnalyzeRequest):
                     transcript_lines = parse_manual_subtitles(request.subtitles, duration)
                     if not transcript_lines:
                         raise Exception("Custom subtitles parsed into empty array.")
-                    check_man = validate_transcript_language(transcript_lines, expected_video_lang=expected_video_lang, title=title)
+                    check_man = validate_transcript_language(transcript_lines, expected_video_lang=None, title=title)
                     if not check_man['is_supported']:
                         yield _sse({
                             "error": f"Bahasa subtitle tidak didukung: terdeteksi {check_man['name']}. Cheat Clip Pro hanya memproses bahasa Indonesia dan Inggris.",

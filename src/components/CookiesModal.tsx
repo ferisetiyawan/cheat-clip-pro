@@ -8,6 +8,8 @@ import {
   getStoredCookiesSize,
   getCookieDomainSamples,
   normalizeCookies,
+  countValidCookies,
+  hasValidCookieLines,
 } from '../utils/cookieUtils';
 
 interface CookiesModalProps {
@@ -27,6 +29,7 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
   const [cookieText, setCookieText] = useState<string>('');
   const [isCookieActive, setIsCookieActive] = useState<boolean>(false);
   const [cookieSize, setCookieSize] = useState<number>(0);
+  const [cookieCount, setCookieCount] = useState<number>(0);
   const [sampleLines, setSampleLines] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -37,10 +40,12 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
     const raw = getStoredCookies();
     const active = hasStoredCookies();
     const size = getStoredCookiesSize();
+    const count = countValidCookies(raw);
     const samples = getCookieDomainSamples(raw);
 
     setIsCookieActive(active);
     setCookieSize(size);
+    setCookieCount(count);
     setSampleLines(samples);
     setCookieText(raw);
 
@@ -78,10 +83,23 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
         const decoder = new TextDecoder(encoding);
         const content = decoder.decode(bytes).replace(/\ufeff/g, '').replace(/\0/g, '');
         setCookieText(content);
-        setMessage({
-          text: t.cookies.fileLoadedInfo(file.name, (content.length / 1024).toFixed(1)),
-          type: 'info'
-        });
+
+        // Auto-save and activate the cookies immediately upon uploading/dropping file!
+        const normalized = normalizeCookies(content);
+        if (hasValidCookieLines(normalized)) {
+          setStoredCookies(normalized);
+          loadStatus();
+          const validNum = countValidCookies(normalized);
+          setMessage({
+            text: t.cookies.fileLoadedAndSaved(file.name, validNum),
+            type: 'success'
+          });
+        } else {
+          setMessage({
+            text: t.cookies.fileLoadedInfo(file.name, (content.length / 1024).toFixed(1)),
+            type: 'info'
+          });
+        }
       } catch (err: any) {
         setMessage({ text: `Failed to read file: ${err.message}`, type: 'error' });
       }
@@ -104,7 +122,7 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
 
     try {
       const normalized = normalizeCookies(cookieText);
-      if (!normalized || normalized.trim().length < 10) {
+      if (!normalized || !hasValidCookieLines(normalized)) {
         setMessage({ text: t.cookies.emptyError, type: 'error' });
         setIsLoading(false);
         return;
@@ -138,6 +156,7 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
     setMessage(null);
     try {
       removeStoredCookies();
+      fetch('/api/cookies', { method: 'DELETE' }).catch(() => {});
       loadStatus();
       setMessage({ text: t.cookies.deletedSuccess, type: 'info' });
     } catch (err: any) {
@@ -180,9 +199,16 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
               <div className="cookie-status-box active">
                 <span className="status-icon">🛡️</span>
                 <div className="status-info">
-                  <strong>
-                    {envCookiesConfigured ? t.envOverride.cookiesOverrideActive : t.cookies.installedTitle}
-                  </strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <strong>
+                      {envCookiesConfigured ? t.envOverride.cookiesOverrideActive : t.cookies.installedTitle}
+                    </strong>
+                    {cookieCount > 0 && (
+                      <span style={{ fontSize: '0.75rem', padding: '0.1rem 0.5rem', borderRadius: '9999px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                        {cookieCount} cookies
+                      </span>
+                    )}
+                  </div>
                   <p>
                     {t.cookies.installedDesc(cookieSize)}
                   </p>

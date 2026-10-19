@@ -91,52 +91,53 @@ def prioritize_transcripts(transcripts: list, expected_lang: Optional[str] = Non
     """
     Filters and sorts transcript tracks ensuring:
     1. STRICT 2-LANGUAGE RESTRICTION: Only Indonesian ('id', 'in') and English ('en') tracks are allowed.
-       Foreign language tracks (Spanish, Japanese, French, Arabic, etc.) are completely filtered out.
-    2. AUDIO-MATCHED ACCURACY: Prioritizes the authentic spoken language of the video:
-       - If YouTube auto-generated captions (is_generated=True) exist, its language code identifies
-         the authentic native spoken language.
-       - If native language is Indonesian ('id'), only Indonesian tracks are prioritized/selected (manual first, then generated).
-         English tracks are NOT selected for an Indonesian video (avoids English translated subtitles!).
-       - If native language is English ('en'), only English tracks are prioritized/selected (manual first, then generated).
-         Indonesian tracks are NOT selected for an English video.
-       - If no generated track exists, respects expected_lang (from audio metadata) or prioritizes manual tracks.
+    2. Respects user-selected expected_lang ('id' or 'en') as top priority:
+       - If expected_lang is 'id', selects Indonesian tracks (manual first, then auto-generated).
+         If not available directly, attempts to translate translatable tracks to 'id'.
+       - If expected_lang is 'en', selects English tracks (manual first, then auto-generated).
+         If not available directly, attempts to translate translatable tracks to 'en'.
+    3. If no expected_lang specified, infers from YouTube generated captions or falls back to manual tracks.
     """
     def _clean_code(t):
         raw = (getattr(t, 'language_code', '') or '').lower().strip()
         base = raw.split('-')[0]
         return 'id' if base == 'in' else base
 
-    # 1. Strictly filter out any tracks not in ID or EN
+    cleaned_expected = 'id' if expected_lang in ('id', 'in') else ('en' if expected_lang == 'en' else None)
+    target_lang = cleaned_expected
+
+    # If expected_lang is not specified, infer from YouTube generated captions
+    if not target_lang:
+        for t in transcripts:
+            if getattr(t, 'is_generated', False):
+                base = _clean_code(t)
+                if base in ('id', 'en'):
+                    target_lang = base
+                    break
+                elif base:
+                    logger.warning(f"Video native audio is '{base}' (not Indonesian or English). Rejecting foreign transcript tracks.")
+                    return []
+
+    # 1. Direct matching tracks in target_lang (manual first, then auto-generated)
+    if target_lang in ('id', 'en'):
+        matching_tracks = [t for t in transcripts if _clean_code(t) == target_lang]
+        if matching_tracks:
+            return sorted(matching_tracks, key=lambda t: 1 if getattr(t, 'is_generated', False) else 0)
+
+        # 2. If direct track not found, try translating available translatable tracks to target_lang
+        for t in transcripts:
+            if getattr(t, 'is_translatable', False) and callable(getattr(t, 'translate', None)):
+                try:
+                    translated = t.translate(target_lang)
+                    if translated:
+                        logger.info(f"Using translated transcript track to {target_lang} from {getattr(t, 'language_code', 'unknown')}")
+                        return [translated]
+                except Exception as tr_err:
+                    logger.warning(f"Failed to translate transcript {getattr(t, 'language_code', '')} to {target_lang}: {tr_err}")
+
+    # Fallback when target_lang is unknown: filter allowed id/en tracks, manual first
     allowed = [t for t in transcripts if _clean_code(t) in ('id', 'en')]
-    if not allowed:
-        return []
-
-    # 2. Check authentic native ASR language from YouTube
-    native_asr_lang = None
-    for t in transcripts:
-        if getattr(t, 'is_generated', False):
-            base = _clean_code(t)
-            if base in ('id', 'en'):
-                native_asr_lang = base
-                break
-            elif base:
-                # Video speech is in an unsupported foreign language (e.g. 'es', 'ja')
-                logger.warning(f"Video native audio is '{base}' (not Indonesian or English). Rejecting foreign transcript tracks.")
-                return []
-
-    target_lang = native_asr_lang or (expected_lang if expected_lang in ('id', 'en') else None)
-
-    if target_lang == 'id':
-        # Strictly keep Indonesian tracks to match spoken audio
-        id_tracks = [t for t in allowed if _clean_code(t) == 'id']
-        return sorted(id_tracks, key=lambda t: 1 if getattr(t, 'is_generated', False) else 0)
-    elif target_lang == 'en':
-        # Strictly keep English tracks to match spoken audio
-        en_tracks = [t for t in allowed if _clean_code(t) == 'en']
-        return sorted(en_tracks, key=lambda t: 1 if getattr(t, 'is_generated', False) else 0)
-    else:
-        # Fallback when native language is completely unknown: manual tracks first
-        return sorted(allowed, key=lambda t: 1 if getattr(t, 'is_generated', False) else 0)
+    return sorted(allowed, key=lambda t: 1 if getattr(t, 'is_generated', False) else 0)
 
 
 def fetch_transcript_cli(
@@ -155,17 +156,16 @@ def fetch_transcript_cli(
     escaped_id = f"\\{video_id}" if video_id.startswith("-") else video_id
     cmd = [sys.executable, "-m", "youtube_transcript_api", escaped_id, "--format", "json"]
 
-    if not priority_langs:
-        if expected_language == 'id':
-            effective_langs = ['id']
-        elif expected_language == 'en':
-            effective_langs = ['en']
-        else:
-            effective_langs = ['id', 'en']
-    else:
+    if expected_language == 'id':
+        effective_langs = ['id', 'id-ID']
+    elif expected_language == 'en':
+        effective_langs = ['en', 'en-US', 'en-GB']
+    elif priority_langs:
         effective_langs = [l for l in priority_langs if l.split('-')[0].lower() in ('id', 'in', 'en')]
         if not effective_langs:
             effective_langs = ['id', 'en']
+    else:
+        effective_langs = ['id', 'en']
 
     cmd.extend(["--languages"] + effective_langs)
 
@@ -359,11 +359,14 @@ def fetch_transcript_supadata(
     for key in rotated_keys:
         masked_key = f"{key[:7]}...{key[-4:]}" if len(key) >= 11 else "***"
         try:
-            logger.info(f"Attempting Supadata transcript fetch with key {masked_key}")
+            logger.info(f"Attempting Supadata transcript fetch with key {masked_key} (lang={expected_language})")
+            supa_params = {"videoId": video_id}
+            if expected_language in ("id", "en"):
+                supa_params["lang"] = expected_language
             response = requests.get(
                 "https://api.supadata.ai/v1/youtube/transcript",
                 headers={"x-api-key": key},
-                params={"videoId": video_id},
+                params=supa_params,
                 timeout=12
             )
             if response.status_code == 200:
@@ -540,6 +543,7 @@ def fetch_transcript_ytdlp(
     """Attempts to extract captions using yt-dlp's player response directly (free, no quota used).
     Strictly limited to authentic Indonesian and English captions matching video dialogue."""
     with ephemeral_cookies_file(cookies_content) as temp_cookies:
+        eff_cookies = temp_cookies or get_effective_cookies_path()
         ydl_opts = {
             'skip_download': True,
             'quiet': True,
@@ -547,70 +551,73 @@ def fetch_transcript_ytdlp(
             'nocheckcertificate': True,
             'proxy': proxy,
             'socket_timeout': 10,
-            'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web_embedded', 'mweb', 'web']}}
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['web', 'mweb', 'android', 'ios'] if eff_cookies else ['android', 'ios', 'web_embedded', 'mweb', 'web']
+                }
+            }
         }
-        eff_cookies = temp_cookies or get_effective_cookies_path()
         if eff_cookies:
             ydl_opts['cookiefile'] = str(eff_cookies)
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-            if not info:
-                return []
-            
-            subtitles = info.get('subtitles') or {}
-            auto_subtitles = info.get('automatic_captions') or {}
-            
-            # Identify the video's native audio language
-            raw_audio_lang = (info.get('audio_language') or info.get('language') or '').lower().split('-')[0]
-            audio_lang = 'id' if raw_audio_lang == 'in' else (raw_audio_lang if raw_audio_lang in ('id', 'en') else None)
-            target = expected_language if expected_language in ('id', 'en') else audio_lang
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                if not info:
+                    return []
+                
+                subtitles = info.get('subtitles') or {}
+                auto_subtitles = info.get('automatic_captions') or {}
+                
+                # Identify the video's native audio language
+                raw_audio_lang = (info.get('audio_language') or info.get('language') or '').lower().split('-')[0]
+                audio_lang = 'id' if raw_audio_lang == 'in' else (raw_audio_lang if raw_audio_lang in ('id', 'en') else None)
+                target = expected_language if expected_language in ('id', 'en') else audio_lang
 
-            # Only allow ID or EN captions
-            if target == 'id':
-                langs_to_try = ['id', 'id-ID']
-            elif target == 'en':
-                langs_to_try = ['en', 'en-US', 'en-GB']
-            else:
-                langs_to_try = ['id', 'id-ID', 'en', 'en-US', 'en-GB']
+                # Only allow ID or EN captions
+                if target == 'id':
+                    langs_to_try = ['id', 'id-ID']
+                elif target == 'en':
+                    langs_to_try = ['en', 'en-US', 'en-GB']
+                else:
+                    langs_to_try = ['id', 'id-ID', 'en', 'en-US', 'en-GB']
 
-            # Manual subtitles first, then auto captions in matching language
-            for lang_dict, is_auto in [(subtitles, False), (auto_subtitles, True)]:
-                ordered_langs = [l for l in langs_to_try if l in lang_dict]
-                for lang in ordered_langs:
-                    base_l = lang.split('-')[0].lower()
-                    if base_l not in ('id', 'in', 'en'):
-                        continue
-                    formats = lang_dict.get(lang) or []
-                    json3_entry = next((f['url'] for f in formats if f.get('ext') == 'json3'), None)
-                    if json3_entry:
-                        proxies_dict = {'http': proxy, 'https': proxy} if proxy else None
-                        attempts = [proxies_dict, None] if proxy else [None]
-                        for p in attempts:
-                            try:
-                                r = requests.get(json3_entry, proxies=p, timeout=8)
-                                if r.status_code == 200:
-                                    events = r.json().get('events', [])
-                                    result = []
-                                    for ev in events:
-                                        segs = ev.get('segs', [])
-                                        text = ''.join(s.get('utf8', '') for s in segs).strip()
-                                        if text:
-                                            start = ev.get('tStartMs', 0) / 1000.0
-                                            dur = ev.get('dDurationMs', 0) / 1000.0
-                                            result.append({'text': text, 'start': start, 'duration': dur})
-                                    if result:
-                                        check = validate_transcript_language(result, expected_video_lang=expected_language)
-                                        if not check['is_supported'] or check['mismatch_detected']:
-                                            logger.warning(f"yt-dlp caption track ({lang}) failed language validation: {check['error_message']}. Discarding.")
-                                            continue
-                                        logger.info(f"Transcript fetched via yt-dlp (lang={lang}, auto={is_auto}, proxy={'yes' if p else 'no'})")
-                                        return result
-                            except Exception:
-                                continue
-    except Exception as e:
-        logger.warning(f"yt-dlp subtitle extraction failed (proxy={'yes' if proxy else 'no'}): {e}")
+                # Manual subtitles first, then auto captions in matching language
+                for lang_dict, is_auto in [(subtitles, False), (auto_subtitles, True)]:
+                    ordered_langs = [l for l in langs_to_try if l in lang_dict]
+                    for lang in ordered_langs:
+                        base_l = lang.split('-')[0].lower()
+                        if base_l not in ('id', 'in', 'en'):
+                            continue
+                        formats = lang_dict.get(lang) or []
+                        json3_entry = next((f['url'] for f in formats if f.get('ext') == 'json3'), None)
+                        if json3_entry:
+                            proxies_dict = {'http': proxy, 'https': proxy} if proxy else None
+                            attempts = [proxies_dict, None] if proxy else [None]
+                            for p in attempts:
+                                try:
+                                    r = requests.get(json3_entry, proxies=p, timeout=8)
+                                    if r.status_code == 200:
+                                        events = r.json().get('events', [])
+                                        result = []
+                                        for ev in events:
+                                            segs = ev.get('segs', [])
+                                            text = ''.join(s.get('utf8', '') for s in segs).strip()
+                                            if text:
+                                                start = ev.get('tStartMs', 0) / 1000.0
+                                                dur = ev.get('dDurationMs', 0) / 1000.0
+                                                result.append({'text': text, 'start': start, 'duration': dur})
+                                        if result:
+                                            check = validate_transcript_language(result, expected_video_lang=expected_language)
+                                            if not check['is_supported'] or check['mismatch_detected']:
+                                                logger.warning(f"yt-dlp caption track ({lang}) failed language validation: {check['error_message']}. Discarding.")
+                                                continue
+                                            logger.info(f"Transcript fetched via yt-dlp (lang={lang}, auto={is_auto}, proxy={'yes' if p else 'no'})")
+                                            return result
+                                except Exception:
+                                    continue
+        except Exception as e:
+            logger.warning(f"yt-dlp subtitle extraction failed (proxy={'yes' if proxy else 'no'}): {e}")
     return []
 
 

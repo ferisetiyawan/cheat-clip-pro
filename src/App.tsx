@@ -3,6 +3,7 @@ import { HeatmapTimeline } from './components/HeatmapTimeline';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { ClipStudioSection } from './components/ClipStudioSection';
 import { CookiesModal } from './components/CookiesModal';
+import { CookieWarningModal } from './components/CookieWarningModal';
 import { ClipTrimmerModal } from './components/ClipTrimmerModal';
 import { AppUpdateModal } from './components/AppUpdateModal';
 import { resilientFetch } from './utils/api';
@@ -56,7 +57,16 @@ export default function App() {
     }
     return false;
   });
-  const [hasCookies, setHasCookies] = useState(false);
+  const [hasCookies, setHasCookies] = useState<boolean>(() => hasStoredCookies());
+  const [cookieWarningState, setCookieWarningState] = useState<{
+    isOpen: boolean;
+    actionType: 'render' | 'download';
+    onProceed: () => void;
+  }>({
+    isOpen: false,
+    actionType: 'render',
+    onProceed: () => {},
+  });
   // Server-managed (ENV) defaults and dashboard auth state
   const [envGeminiConfigured, setEnvGeminiConfigured] = useState(false);
   const [envCookiesConfigured, setEnvCookiesConfigured] = useState(false);
@@ -114,6 +124,11 @@ export default function App() {
   const [subtitlesSource, setSubtitlesSource] = useState<'youtube' | 'manual'>('youtube');
   const [manualSubtitlesContent, setManualSubtitlesContent] = useState<string>('');
   const [manualSubtitlesFileName, setManualSubtitlesFileName] = useState<string>('');
+  const [transcriptLanguage, setTranscriptLanguage] = useState<'id' | 'en'>(() => {
+    const saved = localStorage.getItem('cheat_clip_transcript_language');
+    if (saved === 'id' || saved === 'en') return saved;
+    return 'id';
+  });
 
   const parseTimeToSeconds = (val: string): number | null => {
     const clean = val.trim();
@@ -174,11 +189,15 @@ export default function App() {
 
     checkCookies();
 
-    // Recheck when user returns to window (e.g., after modifying cookies in modal or storage)
+    // Recheck on window focus, cross-tab storage changes, or in-app cookie updates
     window.addEventListener('focus', checkCookies);
+    window.addEventListener('storage', checkCookies);
+    window.addEventListener('cheatclip_cookies_updated', checkCookies);
 
     return () => {
       window.removeEventListener('focus', checkCookies);
+      window.removeEventListener('storage', checkCookies);
+      window.removeEventListener('cheatclip_cookies_updated', checkCookies);
     };
   }, []);
 
@@ -314,11 +333,35 @@ export default function App() {
     return result.clips.filter(c => !!markedClips[`${c.start_time}_${c.end_time}`]);
   }, [result?.clips, markedClips]);
 
-  const handleStartBatchRender = async (settings: RenderSettings) => {
+  const isCurrentVideoYouTube = useCallback(() => {
+    if (sourceMode === 'upload' || sourceMode === 'gdrive') return false;
+    if (result?.source_type === 'upload' || result?.source_type === 'gdrive') return false;
+    if (result?.video_id?.startsWith('upload_') || result?.video_id?.startsWith('gdrive_')) return false;
+    if (result?.video_url?.includes('/api/video/')) return false;
+    return true;
+  }, [sourceMode, result?.source_type, result?.video_id, result?.video_url]);
+
+  const handleStartBatchRender = async (settings: RenderSettings, forceProceed = false) => {
     if (!result) return;
+
+    if (!forceProceed && isCurrentVideoYouTube() && !hasStoredCookies() && !envCookiesConfigured) {
+      const skipped = sessionStorage.getItem('cheatclip_skip_cookie_warning') === 'true';
+      if (!skipped) {
+        setCookieWarningState({
+          isOpen: true,
+          actionType: 'render',
+          onProceed: () => {
+            setCookieWarningState(prev => ({ ...prev, isOpen: false }));
+            handleStartBatchRender(settings, true);
+          }
+        });
+        return;
+      }
+    }
+
     setIsLaunchingRender(true);
 
-    const isClientMode = settings.hardwareAccel === 'browser_wasm' || settings.renderEngine === 'client';
+    const isClientMode = settings.hardwareAccel === 'browser_wasm' || settings.renderEngine === 'client' || (sourceMode === 'upload' && Boolean(uploadedVideoFile));
 
     if (isClientMode) {
       try {
@@ -484,7 +527,11 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          video_url: url || `https://www.youtube.com/watch?v=${result.video_id}`,
+          video_url: (result.video_url && !result.video_url.startsWith('blob:'))
+            ? result.video_url
+            : (result.video_id?.startsWith('upload_') || result.video_id?.startsWith('gdrive_'))
+              ? `/api/video/${result.video_id}`
+              : url || `https://www.youtube.com/watch?v=${result.video_id}`,
           video_id: result.video_id,
           clips: settings.selectedClips,
           cookies: userCookies || undefined,
@@ -991,6 +1038,13 @@ export default function App() {
         setSubtitlesSource('youtube');
       }
 
+      // Restore transcript language if available in range_suffix
+      if (entry.range_suffix?.includes('_lang_en')) {
+        setTranscriptLanguage('en');
+      } else if (entry.range_suffix?.includes('_lang_id')) {
+        setTranscriptLanguage('id');
+      }
+
       // Restore range inputs if they were custom
       if (entry.range_suffix) {
         const cleanRangeSuffix = entry.range_suffix.replace('_manual', '');
@@ -1192,9 +1246,20 @@ export default function App() {
 
   const handleSeek = (seconds: number) => {
     if (directVideoPlayerRef.current) {
-      directVideoPlayerRef.current.currentTime = seconds;
+      const vid = directVideoPlayerRef.current;
       setCurrentTime(seconds);
-      directVideoPlayerRef.current.play().catch(() => {});
+      if (vid.readyState >= 1) {
+        vid.currentTime = seconds;
+        vid.play().catch(() => {});
+      } else {
+        const onLoaded = () => {
+          vid.currentTime = seconds;
+          vid.play().catch(() => {});
+          vid.removeEventListener('loadedmetadata', onLoaded);
+        };
+        vid.addEventListener('loadedmetadata', onLoaded);
+        vid.load();
+      }
       return;
     }
     if (playerRef.current && typeof playerRef.current.seekTo === 'function') {
@@ -1358,6 +1423,7 @@ export default function App() {
     // Determine target video identifier
     let targetAnalyzeUrl = sourceMode === 'gdrive' ? gdriveUrl.trim() : url.trim();
     let videoId = extractVideoId(targetAnalyzeUrl);
+    let currentVideoInfo = uploadedVideoInfo;
 
     if (sourceMode === 'upload') {
       setLoading(true);
@@ -1369,57 +1435,77 @@ export default function App() {
       setOverallProgress(5);
       setActiveProcessingModel(selectedModel);
 
-      let currentVideoInfo = uploadedVideoInfo;
       if (!currentVideoInfo && uploadedVideoFile) {
         setIsUploadingVideo(true);
         setLoadingDetails(t.form.uploadingVideo);
-        setAiStage('Extracting Audio in Browser');
-        setAiDetail(`Extracting audio stream from ${uploadedVideoFile.name} (${(uploadedVideoFile.size / (1024 * 1024)).toFixed(1)} MB)...`);
+        setAiStage('Extracting Audio for AI');
+        setAiDetail(`Extracting lightweight audio track in browser from ${uploadedVideoFile.name}...`);
 
         try {
-          const { audioFile, metadata } = await extractAudioFromVideoClient(
-            uploadedVideoFile,
-            (stage) => {
-              setAiDetail(stage);
-              setLoadingDetails(stage);
-            }
-          );
+          const { audioFile, metadata } = await extractAudioFromVideoClient(uploadedVideoFile, (stage) => {
+            setAiDetail(stage);
+          });
 
-          setAiStage('Uploading Speech Audio Track');
+          setAiStage('Uploading AI Audio');
           setAiDetail(`Uploading compressed audio track (${(audioFile.size / (1024 * 1024)).toFixed(1)} MB)...`);
 
-          const formData = new FormData();
-          formData.append('file', audioFile);
-          formData.append('client_duration', String(metadata.duration || 0));
-          formData.append('client_width', String(metadata.width || 1920));
-          formData.append('client_height', String(metadata.height || 1080));
-          formData.append('original_filename', uploadedVideoFile.name);
+          // Upload lightweight audio file (.wav) to /api/upload-video
+          const upData = await new Promise<any>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/upload-video');
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable && event.total > 0) {
+                const pct = Math.round((event.loaded / event.total) * 100);
+                const loadedMb = (event.loaded / (1024 * 1024)).toFixed(1);
+                const totalMb = (event.total / (1024 * 1024)).toFixed(1);
+                setAiDetail(`Uploading audio track (${pct}% — ${loadedMb}/${totalMb} MB)...`);
+                setStepProgress(prev => ({ ...prev, 1: Math.min(95, pct) }));
+              }
+            };
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  resolve(JSON.parse(xhr.responseText));
+                } catch {
+                  reject(new Error('Invalid JSON response from upload server'));
+                }
+              } else {
+                try {
+                  const errJson = JSON.parse(xhr.responseText);
+                  reject(new Error(errJson.detail || 'Failed to upload audio file'));
+                } catch {
+                  reject(new Error(`Upload failed with status code ${xhr.status}`));
+                }
+              }
+            };
+            xhr.onerror = () => reject(new Error('Network error during audio upload'));
+            xhr.onabort = () => reject(new Error('Audio upload cancelled'));
 
-          const upRes = await fetch('/api/upload-video', {
-            method: 'POST',
-            body: formData,
+            const formData = new FormData();
+            formData.append('file', audioFile);
+            formData.append('client_duration', String(metadata.duration || 0));
+            formData.append('client_width', String(metadata.width || 1920));
+            formData.append('client_height', String(metadata.height || 1080));
+            formData.append('original_filename', uploadedVideoFile.name);
+            xhr.send(formData);
           });
-          if (!upRes.ok) {
-            const errJson = await upRes.json().catch(() => ({}));
-            throw new Error(errJson.detail || 'Failed to upload video audio');
-          }
-          const upData = await upRes.json();
+
           currentVideoInfo = {
             videoId: upData.video_id,
-            filename: upData.filename,
+            filename: uploadedVideoFile.name,
             savedName: upData.saved_name,
             duration: upData.duration || metadata.duration,
-            videoUrl: metadata.objectUrl || upData.video_url,
+            videoUrl: metadata.objectUrl, // Direct local Blob URL for in-browser video playback!
             filePath: upData.file_path,
-            width: upData.width || metadata.width,
-            height: upData.height || metadata.height,
+            width: metadata.width || upData.width || 1920,
+            height: metadata.height || upData.height || 1080,
           };
           setUploadedVideoInfo(currentVideoInfo);
           setIsUploadingVideo(false);
         } catch (uploadErr: any) {
           setIsUploadingVideo(false);
           setLoading(false);
-          setError(uploadErr.message || 'Failed to upload video file');
+          setError(uploadErr.message || 'Failed to extract or upload audio');
           return;
         }
       }
@@ -1435,7 +1521,8 @@ export default function App() {
       const promptSuffix = customPrompt.trim() ? `_prompt_${customPrompt.trim().replace(/[^a-zA-Z0-9]/g, '_')}` : '';
       const modelSuffix = `_model_${selectedModel}`;
       const clipsSuffix = clipCountMode === 'auto' ? '_clips_auto' : `_clips_${targetClipCount}`;
-      const cacheKey = `cheat_clip_cache_${videoId}_${durationPref}${modelSuffix}${clipsSuffix}${promptSuffix}${rangeSuffix}${manualSuffix}`;
+      const langSuffix = subtitlesSource === 'youtube' ? `_lang_${transcriptLanguage}` : '';
+      const cacheKey = `cheat_clip_cache_${videoId}_${durationPref}${modelSuffix}${clipsSuffix}${promptSuffix}${rangeSuffix}${manualSuffix}${langSuffix}`;
 
       const cachedData = localStorage.getItem(cacheKey);
       if (cachedData) {
@@ -1518,6 +1605,7 @@ export default function App() {
           range_end: rangeEndSecs,
           subtitles: subtitlesSource === 'manual' ? manualSubtitlesContent : undefined,
           subtitles_filename: subtitlesSource === 'manual' ? manualSubtitlesFileName : undefined,
+          transcript_language: subtitlesSource === 'youtube' ? transcriptLanguage : undefined,
           target_clip_count: clipCountMode === 'auto' ? 'auto' : targetClipCount,
           cookies: userCookies || undefined,
         }),
@@ -1623,13 +1711,31 @@ export default function App() {
           const promptSuffix = customPrompt.trim() ? `_prompt_${customPrompt.trim().replace(/[^a-zA-Z0-9]/g, '_')}` : '';
           const modelSuffix = `_model_${selectedModel}`;
           const clipsSuffix = clipCountMode === 'auto' ? '_clips_auto' : `_clips_${targetClipCount}`;
-          const targetCacheKey = `cheat_clip_cache_${resultData.video_id}_${durationPref}${modelSuffix}${clipsSuffix}${promptSuffix}${rangeSuffix}${manualSuffix}`;
-          const tsKey = `cheat_clip_ts_${resultData.video_id}_${durationPref}${modelSuffix}${clipsSuffix}${promptSuffix}${rangeSuffix}${manualSuffix}`;
-          localStorage.setItem(targetCacheKey, JSON.stringify(resultData));
+          const langSuffix = subtitlesSource === 'youtube' ? `_lang_${transcriptLanguage}` : '';
+          const targetCacheKey = `cheat_clip_cache_${resultData.video_id}_${durationPref}${modelSuffix}${clipsSuffix}${promptSuffix}${rangeSuffix}${manualSuffix}${langSuffix}`;
+          const tsKey = `cheat_clip_ts_${resultData.video_id}_${durationPref}${modelSuffix}${clipsSuffix}${promptSuffix}${rangeSuffix}${manualSuffix}${langSuffix}`;
+          
+          // Ensure persisted cache stores durable server URL, not temporary blob URL
+          const persistData = {
+            ...resultData,
+            video_url: resultData.video_url?.startsWith('blob:')
+              ? (currentVideoInfo?.savedName ? `/api/video/${currentVideoInfo.savedName}` : `/api/video/${resultData.video_id}`)
+              : resultData.video_url
+          };
+          localStorage.setItem(targetCacheKey, JSON.stringify(persistData));
           localStorage.setItem(tsKey, new Date().toISOString());
           refreshHistory();
         } catch (storageErr) {
           console.warn('Could not cache analysis to localStorage (likely quota limit on mobile device):', storageErr);
+        }
+      }
+
+      // For direct video preview on local upload, preserve the fast in-memory objectUrl
+      if (sourceMode === 'upload' && currentVideoInfo) {
+        if (currentVideoInfo.videoUrl) {
+          resultData.video_url = currentVideoInfo.videoUrl;
+        } else if (!resultData.video_url || resultData.video_url.endsWith('.wav')) {
+          resultData.video_url = currentVideoInfo.savedName ? `/api/video/${currentVideoInfo.savedName}` : `/api/video/${currentVideoInfo.videoId}`;
         }
       }
 
@@ -1716,9 +1822,38 @@ export default function App() {
     }
   };
 
-  const handleDownloadRawVideo = async () => {
+  const handleDownloadRawVideo = async (forceProceed?: boolean | React.MouseEvent) => {
     if (!result || !result.video_id) return;
-    const targetUrl = result.video_url || (url.trim() ? url.trim() : (result.video_id?.startsWith('gdrive_') || result.video_id?.startsWith('upload_') ? `/api/video/${result.video_id}` : `https://www.youtube.com/watch?v=${result.video_id}`));
+
+    // For local upload with uploaded video file, trigger immediate direct browser download
+    if (sourceMode === 'upload' && uploadedVideoFile) {
+      triggerBrowserDownload(uploadedVideoFile, uploadedVideoFile.name);
+      setToastMessage(`${t.rawDownload.completedToast} (${uploadedVideoFile.name})`);
+      return;
+    }
+
+    const isForced = forceProceed === true;
+
+    if (!isForced && isCurrentVideoYouTube() && !hasStoredCookies() && !envCookiesConfigured) {
+      const skipped = sessionStorage.getItem('cheatclip_skip_cookie_warning') === 'true';
+      if (!skipped) {
+        setCookieWarningState({
+          isOpen: true,
+          actionType: 'download',
+          onProceed: () => {
+            setCookieWarningState(prev => ({ ...prev, isOpen: false }));
+            handleDownloadRawVideo(true);
+          }
+        });
+        return;
+      }
+    }
+
+    const targetUrl = (result.video_url && !result.video_url.startsWith('blob:'))
+      ? result.video_url
+      : (result.video_id?.startsWith('gdrive_') || result.video_id?.startsWith('upload_'))
+        ? `/api/video/${result.video_id}`
+        : (url.trim() ? url.trim() : `https://www.youtube.com/watch?v=${result.video_id}`);
     setIsDownloadingRaw(true);
     setRawDownloadProgress({
       jobId: '',
@@ -1832,9 +1967,70 @@ export default function App() {
     }
   };
 
-  const handleDownloadRawClip = async (clip: ViralClip, e?: React.MouseEvent) => {
+  const handleDownloadRawClip = async (clip: ViralClip, e?: React.MouseEvent, forceProceed = false) => {
     if (e) e.stopPropagation();
     if (!result || !result.video_id) return;
+
+    // For local upload with uploaded video file, slice and download directly in browser via WASM
+    if (sourceMode === 'upload' && uploadedVideoFile) {
+      const clipKey = `${clip.start_time}_${clip.end_time}`;
+      if (clipDownloadStates[clipKey]?.status === 'downloading') return;
+
+      setClipDownloadStates(prev => ({
+        ...prev,
+        [clipKey]: { status: 'downloading' }
+      }));
+      setToastMessage(`${t.results.downloadingRawClip} "${clip.title}"`);
+
+      try {
+        const rawSourceUrl = URL.createObjectURL(uploadedVideoFile);
+        const blob = await renderClipClientSide({
+          videoSourceUrl: rawSourceUrl,
+          startTime: clip.start_time,
+          endTime: clip.end_time,
+          aspectRatio: '16:9',
+          backgroundStyle: 'crop',
+          titleText: undefined,
+          fileName: `${clip.title}.mp4`,
+        });
+        triggerBrowserDownload(blob, `${clip.title} (raw).mp4`);
+        URL.revokeObjectURL(rawSourceUrl);
+        setClipDownloadStates(prev => ({
+          ...prev,
+          [clipKey]: { status: 'ready' }
+        }));
+        setToastMessage(`✅ ${clip.title} (raw)`);
+        setTimeout(() => {
+          setClipDownloadStates(prev => ({
+            ...prev,
+            [clipKey]: { status: 'idle' }
+          }));
+        }, 4000);
+      } catch (err: any) {
+        setClipDownloadStates(prev => ({
+          ...prev,
+          [clipKey]: { status: 'idle' }
+        }));
+        setToastMessage(`Failed to export raw clip: ${err?.message || err}`);
+      }
+      return;
+    }
+
+    if (!forceProceed && isCurrentVideoYouTube() && !hasStoredCookies() && !envCookiesConfigured) {
+      const skipped = sessionStorage.getItem('cheatclip_skip_cookie_warning') === 'true';
+      if (!skipped) {
+        setCookieWarningState({
+          isOpen: true,
+          actionType: 'download',
+          onProceed: () => {
+            setCookieWarningState(prev => ({ ...prev, isOpen: false }));
+            handleDownloadRawClip(clip, undefined, true);
+          }
+        });
+        return;
+      }
+    }
+
     const clipKey = `${clip.start_time}_${clip.end_time}`;
     if (clipDownloadStates[clipKey]?.status === 'downloading') return;
 
@@ -1844,7 +2040,11 @@ export default function App() {
     }));
     setToastMessage(`${t.results.downloadingRawClip} "${clip.title}"`);
 
-    const targetUrl = result.video_url || (url.trim() ? url.trim() : (result.video_id?.startsWith('gdrive_') || result.video_id?.startsWith('upload_') ? `/api/video/${result.video_id}` : `https://www.youtube.com/watch?v=${result.video_id}`));
+    const targetUrl = (result.video_url && !result.video_url.startsWith('blob:'))
+      ? result.video_url
+      : (result.video_id?.startsWith('gdrive_') || result.video_id?.startsWith('upload_'))
+        ? `/api/video/${result.video_id}`
+        : (url.trim() ? url.trim() : `https://www.youtube.com/watch?v=${result.video_id}`);
 
     try {
       const userCookies = getStoredCookies();
@@ -2354,22 +2554,33 @@ Transcript:
               fontSize: '0.8rem',
               fontWeight: 600,
               borderRadius: '8px',
-              background: cookiesActive ? 'rgba(34, 197, 94, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-              border: cookiesActive ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: cookiesActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+              border: cookiesActive ? '1px solid rgba(34, 197, 94, 0.45)' : '1px solid rgba(255, 255, 255, 0.1)',
               color: cookiesActive ? '#4ade80' : 'var(--text-secondary)',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.4rem',
+              gap: '0.45rem',
               cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              boxShadow: cookiesActive ? '0 0 10px rgba(34, 197, 94, 0.15)' : 'none'
             }}
             title={cookiesActive ? t.header.cookiesTooltipActive : t.header.cookiesTooltipSetup}
           >
             <span>🍪 {t.header.cookiesBtn}</span>
-            <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>
-              {envCookiesConfigured && !hasCookies
-                ? t.envOverride.serverManagedShort
-                : cookiesActive ? t.header.cookiesStatusActive : t.header.cookiesStatusSetup}
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+              {envCookiesConfigured && !hasCookies ? (
+                <span style={{ opacity: 0.85 }}>{t.envOverride.serverManagedShort}</span>
+              ) : hasCookies ? (
+                <>
+                  <span style={{ color: '#22c55e', fontSize: '0.85rem' }}>✓</span>
+                  <span>{t.header.cookiesStatusActive}</span>
+                </>
+              ) : (
+                <>
+                  <span style={{ opacity: 0.5 }}>○</span>
+                  <span>{t.header.cookiesStatusSetup}</span>
+                </>
+              )}
             </span>
           </button>
           {allowAppUpdates && (
@@ -3225,6 +3436,44 @@ Transcript:
             </div>
 
             {subtitlesSource === 'youtube' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: '0.25rem', padding: '0.75rem 0.9rem', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span>🌐</span>
+                    <span>{t.form.transcriptLanguage}</span>
+                  </label>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    {t.form.transcriptLanguageHint}
+                  </span>
+                </div>
+                <div className="duration-selector" style={{ maxWidth: '320px' }}>
+                  <button
+                    type="button"
+                    className={`duration-btn ${transcriptLanguage === 'id' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTranscriptLanguage('id');
+                      localStorage.setItem('cheat_clip_transcript_language', 'id');
+                    }}
+                    disabled={loading}
+                  >
+                    🇮🇩 {t.form.langIndonesian}
+                  </button>
+                  <button
+                    type="button"
+                    className={`duration-btn ${transcriptLanguage === 'en' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTranscriptLanguage('en');
+                      localStorage.setItem('cheat_clip_transcript_language', 'en');
+                    }}
+                    disabled={loading}
+                  >
+                    🇬🇧 {t.form.langEnglish}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {subtitlesSource === 'youtube' && (
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', opacity: 0.8, display: 'block', marginTop: '0.15rem', lineHeight: '1.4' }}>
                 💡 <strong>{t.form.subtitlesTipTitle}</strong> {t.form.subtitlesTipDesc} <a href="https://downsub.com/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--secondary)', textDecoration: 'underline', fontWeight: '500' }}>downsub.com</a> {t.form.andUploadOption}
               </span>
@@ -4024,6 +4273,15 @@ Transcript:
                     }}
                     onPlay={() => startTracking()}
                     onPause={() => stopTracking()}
+                    onError={(e) => {
+                      const vid = e.currentTarget;
+                      const fallback = `/api/video/${encodeURIComponent(result.video_id)}`;
+                      if (vid.src !== fallback && !vid.src.endsWith(fallback)) {
+                        console.warn('[Player] Direct video failed, attempting fallback to server stream:', fallback);
+                        vid.src = fallback;
+                        vid.load();
+                      }
+                    }}
                   />
                 ) : (
                   <div id="youtube-player-container" style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
@@ -4851,13 +5109,29 @@ Transcript:
           }}
           onRetryClip={handleRetryBatchClip}
           allowAppUpdates={allowAppUpdates}
+          onOpenCookiesModal={() => setIsCookiesModalOpen(true)}
         />
       )}
+
+      {/* Cookie Pre-check Warning Modal */}
+      <CookieWarningModal
+        isOpen={cookieWarningState.isOpen}
+        actionType={cookieWarningState.actionType}
+        onClose={() => setCookieWarningState(prev => ({ ...prev, isOpen: false }))}
+        onProceedAnyway={cookieWarningState.onProceed}
+        onOpenCookiesModal={() => {
+          setCookieWarningState(prev => ({ ...prev, isOpen: false }));
+          setIsCookiesModalOpen(true);
+        }}
+      />
 
       {/* YouTube Cookies Modal */}
       <CookiesModal
         isOpen={isCookiesModalOpen}
-        onClose={() => setIsCookiesModalOpen(false)}
+        onClose={() => {
+          setIsCookiesModalOpen(false);
+          setHasCookies(hasStoredCookies());
+        }}
         onCookieStatusChange={setHasCookies}
         envCookiesConfigured={envCookiesConfigured}
       />
